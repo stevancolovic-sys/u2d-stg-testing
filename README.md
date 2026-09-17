@@ -18,18 +18,16 @@ npm test
 
 ## Deploy
 
-One-time setup, in your own terminal (the login step opens a browser):
+Nothing to create first — callbacks live in a SQLite-backed Durable Object,
+which the deploy migration sets up. Two ways:
+
+**From the Cloudflare dashboard.** Workers & Pages → Create → Import a
+repository → pick this repo. Every push then deploys itself.
+
+**From your terminal.**
 
 ```bash
-npx wrangler login
-npx wrangler kv namespace create HOOKS
-npx wrangler kv namespace create HOOKS --preview
-```
-
-Paste the two returned ids into `wrangler.toml` as `id` and `preview_id`,
-then:
-
-```bash
+npx wrangler login   # opens a browser
 npm run deploy
 ```
 
@@ -105,4 +103,4 @@ Adding an endpoint means adding one object to `public/js/endpoints.js`.
 - The API's own documentation transposes the curl examples for
   `/open-refresh/posts` and `/open-refresh/latest-post`. The registry follows
   the endpoint descriptions, not those examples.
-- Callbacks are kept for 24 hours, then expire.
+- Callbacks are kept for 24 hours, and only the newest 200 per hook id.

@@ -3,8 +3,13 @@
 // Two jobs only: serve the static UI, and act as a sink for webhook
 // callbacks. API traffic never passes through here — the browser talks to
 // api.uptodata.io directly, so the API key and JWT stay client-side.
+//
+// Callbacks live in a Durable Object per hook id, backed by SQLite. A DO
+// needs no resource created ahead of deploy, which keeps `wrangler deploy`
+// and a dashboard repo import equally one-step.
 
-const TTL_SECONDS = 24 * 60 * 60
+const RETENTION_MS = 24 * 60 * 60 * 1000
+const MAX_EVENTS = 200
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -12,41 +17,79 @@ const json = (data, status = 200) =>
     headers: { 'content-type': 'application/json' },
   })
 
-async function storeCallback(env, id, request) {
-  const raw = await request.text()
-  let body = null
-  try {
-    body = JSON.parse(raw)
-  } catch {
-    body = null
+export class HookStore {
+  constructor(ctx) {
+    this.ctx = ctx
+    this.sql = ctx.storage.sql
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      received_at TEXT NOT NULL,
+      created_ms INTEGER NOT NULL,
+      headers TEXT NOT NULL,
+      body TEXT,
+      raw TEXT NOT NULL
+    )`)
   }
 
-  const key = `hook:${id}:${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
-  const record = {
-    id: key,
-    receivedAt: new Date().toISOString(),
-    headers: Object.fromEntries(request.headers),
-    body,
-    raw,
+  prune(now) {
+    this.sql.exec('DELETE FROM events WHERE created_ms < ?', now - RETENTION_MS)
+    this.sql.exec(
+      'DELETE FROM events WHERE id NOT IN (SELECT id FROM events ORDER BY created_ms DESC, id DESC LIMIT ?)',
+      MAX_EVENTS
+    )
   }
-  await env.HOOKS.put(key, JSON.stringify(record), { expirationTtl: TTL_SECONDS })
-}
 
-async function listCallbacks(env, id) {
-  const { keys } = await env.HOOKS.list({ prefix: `hook:${id}:` })
-  const events = await Promise.all(
-    keys.map(async (k) => {
-      const value = await env.HOOKS.get(k.name)
-      return value ? JSON.parse(value) : null
-    })
-  )
-  // Keys embed the timestamp, so a reverse sort is newest-first.
-  return events.filter(Boolean).sort((a, b) => (a.id < b.id ? 1 : -1))
-}
+  async store(request) {
+    const raw = await request.text()
+    let body = null
+    try {
+      body = JSON.parse(raw)
+    } catch {
+      body = null
+    }
 
-async function clearCallbacks(env, id) {
-  const { keys } = await env.HOOKS.list({ prefix: `hook:${id}:` })
-  await Promise.all(keys.map((k) => env.HOOKS.delete(k.name)))
+    const now = Date.now()
+    this.sql.exec(
+      'INSERT INTO events (id, received_at, created_ms, headers, body, raw) VALUES (?, ?, ?, ?, ?, ?)',
+      `${now}-${crypto.randomUUID().slice(0, 8)}`,
+      new Date(now).toISOString(),
+      now,
+      JSON.stringify(Object.fromEntries(request.headers)),
+      body === null ? null : JSON.stringify(body),
+      raw
+    )
+    this.prune(now)
+  }
+
+  list() {
+    const rows = this.sql
+      .exec('SELECT * FROM events ORDER BY created_ms DESC, id DESC')
+      .toArray()
+    return rows.map((row) => ({
+      id: row.id,
+      receivedAt: row.received_at,
+      headers: JSON.parse(row.headers),
+      body: row.body === null ? null : JSON.parse(row.body),
+      raw: row.raw,
+    }))
+  }
+
+  async fetch(request) {
+    const { pathname } = new URL(request.url)
+
+    if (request.method === 'POST' && pathname === '/') {
+      await this.store(request)
+      return json({ received: true })
+    }
+    if (request.method === 'GET' && pathname === '/events') {
+      return json({ events: this.list() })
+    }
+    if (request.method === 'DELETE' && pathname === '/') {
+      this.sql.exec('DELETE FROM events')
+      return json({ cleared: true })
+    }
+    return json({ error: 'Not found' }, 404)
+  }
 }
 
 export default {
@@ -55,27 +98,23 @@ export default {
     const parts = url.pathname.split('/').filter(Boolean)
 
     if (parts[0] === 'hook' && parts[1]) {
-      const id = parts[1]
+      const stub = env.HOOKS.get(env.HOOKS.idFromName(parts[1]))
+      const inner = parts[2] === 'events' ? 'https://do/events' : 'https://do/'
 
-      if (parts[2] === 'events' && request.method === 'GET') {
-        return json({ events: await listCallbacks(env, id) })
-      }
-      if (!parts[2] && request.method === 'POST') {
+      if (parts[2] && parts[2] !== 'events') return json({ error: 'Not found' }, 404)
+
+      if (request.method === 'POST' && !parts[2]) {
         // Always answer 200, even if storage fails. A non-2xx puts the
         // delivery into the API's retry schedule (10min, 1h, 8h, 24h),
         // which is not what a dropped test callback deserves.
         try {
-          await storeCallback(env, id, request)
+          return await stub.fetch(new Request(inner, { method: 'POST', headers: request.headers, body: request.body }))
         } catch (err) {
           console.error('hook store failed', err)
+          return json({ received: false })
         }
-        return json({ received: true })
       }
-      if (!parts[2] && request.method === 'DELETE') {
-        await clearCallbacks(env, id)
-        return json({ cleared: true })
-      }
-      return json({ error: 'Not found' }, 404)
+      return stub.fetch(new Request(inner, { method: request.method }))
     }
 
     if (env.ASSETS) return env.ASSETS.fetch(request)

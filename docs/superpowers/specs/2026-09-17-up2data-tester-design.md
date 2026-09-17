@@ -69,14 +69,14 @@ Cloudflare's logs and keeps the Worker free of any auth handling.
 tool unless they share the id. This is obscurity, not access control — see
 Security below.
 
-**Storage:** Workers KV. Writes are capped at 1,000/day on the free plan,
-which is ample for manual testing. Callbacks are ephemeral test data, so the
-24-hour TTL is a feature, not a limitation.
+**Storage:** one SQLite-backed Durable Object per hook id, available on the
+Workers free plan. A Durable Object is created by the deploy migration rather
+than provisioned ahead of time, so deploying — by CLI or by importing the
+repository in the Cloudflare dashboard — needs no resource set up by hand and
+no ids pasted into config. Reads are strongly consistent, unlike KV.
 
-**Note on KV consistency:** KV is eventually consistent, so a callback may
-take a few seconds to appear in `/hook/:id/events` after it is written. The UI
-polls, so this is invisible in practice, but it means the events list is not
-a strict real-time feed.
+Each hook keeps callbacks for 24 hours and at most the newest 200; both are
+enforced on write. Callbacks are ephemeral test data, so this is a feature.
 
 ### UI structure
 
