@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planCards, shouldAutoLoadResults } from '../public/js/queue-plan.js'
+import { planCards, shouldAutoLoadResults, isFinished } from '../public/js/queue-plan.js'
 
 const q = (id, extra = {}) => ({ id, ...extra })
 
@@ -48,9 +48,39 @@ describe('planCards', () => {
   })
 })
 
+describe('isFinished', () => {
+  it('accepts completed, which the docs promise', () => {
+    expect(isFinished(q('a', { status: 'completed', processed: 0, total: 0 }))).toBe(true)
+  })
+
+  it('accepts notified, which staging actually returns', () => {
+    expect(isFinished(q('a', { status: 'notified', processed: 1, total: 1 }))).toBe(true)
+  })
+
+  it('trusts the count even when the status word is unfamiliar', () => {
+    expect(isFinished(q('a', { status: 'whatever-comes-next', processed: 50, total: 50 }))).toBe(true)
+    expect(isFinished(q('a', { status: 'sent', processed: 51, total: 50 }))).toBe(true)
+  })
+
+  it('is not finished while there is work left', () => {
+    expect(isFinished(q('a', { status: 'pending', processed: 35, total: 50 }))).toBe(false)
+    expect(isFinished(q('a', { status: 'processing', processed: 0, total: 10 }))).toBe(false)
+  })
+
+  it('is not finished before the first status check', () => {
+    expect(isFinished(q('a', { status: null, processed: 0, total: 0 }))).toBe(false)
+    expect(isFinished(undefined)).toBe(false)
+  })
+
+  it('ignores the case of the status word', () => {
+    expect(isFinished(q('a', { status: 'Notified', processed: 0, total: 0 }))).toBe(true)
+  })
+})
+
 describe('shouldAutoLoadResults', () => {
-  it('loads once a queue completes', () => {
+  it('loads once a queue finishes', () => {
     expect(shouldAutoLoadResults(q('a', { status: 'completed' }), false)).toBe(true)
+    expect(shouldAutoLoadResults(q('a', { status: 'notified', processed: 1, total: 1 }), false)).toBe(true)
   })
 
   it('does not load again on the next tick', () => {
@@ -58,7 +88,7 @@ describe('shouldAutoLoadResults', () => {
   })
 
   it('waits while the queue is still pending', () => {
-    expect(shouldAutoLoadResults(q('a', { status: 'pending' }), false)).toBe(false)
+    expect(shouldAutoLoadResults(q('a', { status: 'pending', processed: 1, total: 5 }), false)).toBe(false)
     expect(shouldAutoLoadResults(q('a', { status: null }), false)).toBe(false)
   })
 })

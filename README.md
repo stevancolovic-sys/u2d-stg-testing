@@ -155,6 +155,19 @@ still sends only what you ticked: the single-list endpoints answer with their
 own callback `type` (`ActivityComments`, `ActivityReactions`) and their own
 `partial` flags, which is usually the thing being tested.
 
+## Notes on the API as it behaves
+
+- `/open-refresh/status` is documented as returning `"pending"` or
+  `"completed"`. Staging also returns **`"notified"`** for a finished queue
+  whose webhooks have gone out. The console therefore treats a queue as
+  finished when `processed` reaches `total`, or when the status word is one of
+  several known terminal values — the count is the signal that does not depend
+  on guessing the vocabulary.
+- A finished activity queue has been observed reporting `1/1` processed while
+  `/open-refresh/list` returns `{"items":[],"total":0}`, with or without
+  `failed=true`. When that happens the console says so instead of showing a
+  bare `[]`. Take the results from the webhook callback in that case.
+
 ## Notes
 
 - The API's own documentation transposes the curl examples for

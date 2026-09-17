@@ -18,9 +18,21 @@ export function planCards(existingIds, queues) {
   }
 }
 
+// The documentation says status is "pending" or "completed". Staging also
+// answers "notified", which is what a finished queue looks like once its
+// webhooks have gone out — so a queue was left polling forever and never
+// showed its results. The count is the reliable signal: the vocabulary is
+// not ours to predict, but processed reaching total is arithmetic.
+const KNOWN_TERMINAL = ['completed', 'notified', 'finished', 'done', 'failed', 'error']
+
+export function isFinished(queue) {
+  if (!queue) return false
+  if (queue.total > 0 && queue.processed >= queue.total) return true
+  return KNOWN_TERMINAL.includes(String(queue.status || '').toLowerCase())
+}
+
 // A finished queue should show its results without being asked, but only
-// once — re-fetching on every tick would spend nothing but would blow away
-// the page the user had paged to.
+// once — re-fetching on every tick would blow away the page it had paged to.
 export function shouldAutoLoadResults(queue, loadedAlready) {
-  return queue.status === 'completed' && !loadedAlready
+  return isFinished(queue) && !loadedAlready
 }

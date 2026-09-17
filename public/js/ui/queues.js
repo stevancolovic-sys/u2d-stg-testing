@@ -13,7 +13,7 @@
 import { callApi } from '../api.js'
 import { byId } from '../endpoints.js'
 import { downloadJson, copyJson } from '../download.js'
-import { planCards, shouldAutoLoadResults } from '../queue-plan.js'
+import { planCards, shouldAutoLoadResults, isFinished } from '../queue-plan.js'
 
 const STORE = 'up2data.queues'
 const el = (tag, className, text) => {
@@ -75,7 +75,7 @@ async function tick(queue) {
     queue.processed = result.body.processed ?? 0
     queue.total = result.body.total ?? 0
     save()
-    if (queue.status === 'completed') stopPolling(queue.id)
+    if (isFinished(queue)) stopPolling(queue.id)
   } else if (result.transportError || !result.ok) {
     queue.error = result.transportError || `status ${result.status}`
     stopPolling(queue.id)
@@ -166,6 +166,20 @@ async function loadResults(queue, refs) {
     )
   }
   target.append(summary)
+
+  // A finished queue with nothing to list is worth saying out loud: the bare
+  // [] below reads as "no results yet" when it actually means the queue
+  // processed its items and the list endpoint still has none of them.
+  if (isFinished(queue) && !(body.items || []).length) {
+    target.append(
+      el(
+        'p',
+        'hint',
+        `The queue reports ${queue.processed}/${queue.total} processed, but list returned no items. ` +
+          'The results are not retrievable this way — check the webhook callback instead.'
+      )
+    )
+  }
 
   const pre = el('pre', 'json')
   pre.textContent = JSON.stringify(items, null, 2)
@@ -316,7 +330,7 @@ function updateCard(queue, entry) {
   const { refs } = entry
   const pct = queue.total ? Math.round((queue.processed / queue.total) * 100) : 0
   refs.fill.style.width = `${pct}%`
-  refs.fill.classList.toggle('done', queue.status === 'completed')
+  refs.fill.classList.toggle('done', isFinished(queue))
 
   refs.meta.textContent = ''
   refs.meta.append(
@@ -344,7 +358,9 @@ export function render() {
 
   for (const id of plan.create) {
     const queue = queues.find((q) => q.id === id)
-    cards.set(id, buildCard(queue))
+    const entry = buildCard(queue)
+    cards.set(id, entry)
+    updateCard(queue, entry)
   }
 
   // Existing cards keep their DOM — and therefore their loaded results.
