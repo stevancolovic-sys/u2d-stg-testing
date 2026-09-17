@@ -1,12 +1,19 @@
 // Tracks the queues this tool created: status polling and result paging.
 //
+// Cards are built once and updated in place. An earlier version rebuilt the
+// whole list on every poll tick, which silently threw away loaded results,
+// their download buttons, and any page number typed into the card — the only
+// way to keep results on screen was to reload the page, which stopped the
+// polling that was wiping them.
+//
 // Polling starts by itself for a queue just created, and stops at
-// `completed`. Queues restored from a previous session wait for a click —
-// reopening the tool should not silently start a dozen polling loops.
+// `completed`. Queues restored from a previous session wait for a click, so
+// reopening the tool never starts a dozen polling loops.
 
 import { callApi } from '../api.js'
 import { byId } from '../endpoints.js'
 import { downloadJson, copyJson } from '../download.js'
+import { planCards, shouldAutoLoadResults } from '../queue-plan.js'
 
 const STORE = 'up2data.queues'
 const el = (tag, className, text) => {
@@ -17,8 +24,10 @@ const el = (tag, className, text) => {
 }
 
 const timers = new Map()
+const cards = new Map()
 let queues = []
-let ctx = { getToken: () => null, onRender: () => {} }
+let container = null
+let ctx = { getToken: () => null }
 
 function load() {
   try {
@@ -44,10 +53,12 @@ export function addQueues(ids, meta) {
   }
   save()
   render()
-  // A queue created right now starts polling immediately. One restored from
-  // a previous session does not — see mountQueues.
+  // A queue created right now starts polling immediately. One restored from a
+  // previous session does not — see mountQueues.
   for (const id of ids) startPolling(id)
 }
+
+// --- polling -------------------------------------------------------------
 
 async function tick(queue) {
   const token = ctx.getToken()
@@ -69,22 +80,36 @@ async function tick(queue) {
     queue.error = result.transportError || `status ${result.status}`
     stopPolling(queue.id)
   }
-  render()
+
+  const entry = cards.get(queue.id)
+  if (entry) {
+    updateCard(queue, entry)
+    // Show the results the moment the queue finishes, without another click.
+    if (shouldAutoLoadResults(queue, entry.resultsLoaded)) {
+      entry.resultsLoaded = true
+      entry.refs.load.click()
+    }
+  }
 }
 
 export function startPolling(id) {
   const queue = queues.find((q) => q.id === id)
   if (!queue || timers.has(id)) return
-  tick(queue)
   timers.set(id, setInterval(() => tick(queue), 5000))
-  render()
+  refreshToggle(id)
+  tick(queue)
 }
 
 export function stopPolling(id) {
   const timer = timers.get(id)
   if (timer) clearInterval(timer)
   timers.delete(id)
-  render()
+  refreshToggle(id)
+}
+
+function refreshToggle(id) {
+  const entry = cards.get(id)
+  if (entry) entry.refs.toggle.textContent = timers.has(id) ? 'Stop checking' : 'Check status'
 }
 
 function removeQueue(id) {
@@ -94,18 +119,31 @@ function removeQueue(id) {
   render()
 }
 
-async function loadResults(queue, page, limit, failed, target) {
+// --- results -------------------------------------------------------------
+
+async function loadResults(queue, refs) {
   const token = ctx.getToken()
   if (!token) return
+
+  // The API rejects anything outside 1–25, so clamp before asking.
+  const limit = Math.min(25, Math.max(1, Number(refs.limit.value) || 10))
+  const page = Math.max(0, Number(refs.page.value) || 0)
+  refs.limit.value = String(limit)
+  refs.page.value = String(page)
+
+  const target = refs.results
   target.textContent = 'Loading…'
 
-  const state = {
-    queueId: { value: queue.id },
-    page: { value: page },
-    limit: { value: limit },
-    failed: { enabled: failed, value: true },
-  }
-  const result = await callApi({ endpoint: byId('list'), state, token })
+  const result = await callApi({
+    endpoint: byId('list'),
+    state: {
+      queueId: { value: queue.id },
+      page: { value: page },
+      limit: { value: limit },
+      failed: { enabled: refs.failed.checked, value: true },
+    },
+    token,
+  })
 
   target.textContent = ''
   if (result.transportError) {
@@ -113,7 +151,7 @@ async function loadResults(queue, page, limit, failed, target) {
     return
   }
   if (!result.ok) {
-    target.append(el('p', 'hint', `${result.status} — ${result.raw.slice(0, 300)}`))
+    target.append(el('p', 'hint', `${result.status} — ${(result.raw || '').slice(0, 300)}`))
     return
   }
 
@@ -152,7 +190,9 @@ async function loadResults(queue, page, limit, failed, target) {
   })
 
   const saveAll = el('button', 'btn-ghost', 'Download every page')
-  saveAll.addEventListener('click', () => downloadEveryPage(queue, limit, failed, saveAll))
+  saveAll.addEventListener('click', () =>
+    downloadEveryPage(queue, limit, refs.failed.checked, saveAll)
+  )
 
   actions.append(savePage, copy, saveAll)
   target.append(actions)
@@ -205,8 +245,11 @@ async function downloadEveryPage(queue, limit, failed, btn) {
   }
 }
 
-function renderQueue(queue) {
+// --- cards ---------------------------------------------------------------
+
+function buildCard(queue) {
   const card = el('div', 'queue')
+  const refs = {}
 
   const head = el('div', 'queue-head')
   head.append(el('span', 'mono', queue.id))
@@ -215,72 +258,115 @@ function renderQueue(queue) {
 
   if (queue.name) card.append(el('div', 'muted', queue.name))
 
-  const pct = queue.total ? Math.round((queue.processed / queue.total) * 100) : 0
   const bar = el('div', 'bar')
-  const fill = el('div', 'bar-fill')
-  fill.style.width = `${pct}%`
-  if (queue.status === 'completed') fill.classList.add('done')
-  bar.append(fill)
+  refs.fill = el('div', 'bar-fill')
+  bar.append(refs.fill)
   card.append(bar)
 
-  const meta = el('div', 'queue-meta')
-  meta.append(el('span', null, queue.status ? `${queue.status} · ${queue.processed}/${queue.total}` : 'not checked yet'))
-  if (queue.error) meta.append(el('span', 'muted', queue.error))
-  card.append(meta)
+  refs.meta = el('div', 'queue-meta')
+  card.append(refs.meta)
 
   const actions = el('div', 'row-actions')
-  const polling = timers.has(queue.id)
-  const toggle = el('button', 'btn-ghost', polling ? 'Stop checking' : 'Check status')
-  toggle.addEventListener('click', () => (polling ? stopPolling(queue.id) : startPolling(queue.id)))
-  actions.append(toggle)
 
-  const pageInput = el('input', 'input input-num')
-  pageInput.type = 'number'
-  pageInput.min = '0'
-  pageInput.value = '0'
-  pageInput.title = 'page (0-indexed)'
-  const limitInput = el('input', 'input input-num')
-  limitInput.type = 'number'
-  limitInput.min = '1'
-  limitInput.max = '25'
-  limitInput.value = '10'
-  limitInput.title = 'limit (1–25)'
-  const failedBox = el('input')
-  failedBox.type = 'checkbox'
+  refs.toggle = el('button', 'btn-ghost')
+  refs.toggle.addEventListener('click', () =>
+    timers.has(queue.id) ? stopPolling(queue.id) : startPolling(queue.id)
+  )
+  actions.append(refs.toggle)
+
+  refs.page = el('input', 'input input-num')
+  refs.page.type = 'number'
+  refs.page.min = '0'
+  refs.page.value = '0'
+  refs.page.title = 'page (0-indexed)'
+
+  refs.limit = el('input', 'input input-num')
+  refs.limit.type = 'number'
+  refs.limit.min = '1'
+  refs.limit.max = '25'
+  refs.limit.value = '10'
+  refs.limit.title = 'limit (1–25)'
+
+  refs.failed = el('input')
+  refs.failed.type = 'checkbox'
   const failedLabel = el('label', 'toggle')
-  failedLabel.append(failedBox, el('span', 'mono', 'failed'))
+  failedLabel.append(refs.failed, el('span', 'mono', 'failed'))
 
-  const results = el('div', 'queue-results')
-  const loadBtn = el('button', 'btn-ghost', 'Load results')
-  loadBtn.addEventListener('click', () => {
-    // The API rejects anything outside 1–25, so clamp before asking.
-    const limit = Math.min(25, Math.max(1, Number(limitInput.value) || 10))
-    limitInput.value = String(limit)
-    const page = Math.max(0, Number(pageInput.value) || 0)
-    pageInput.value = String(page)
-    loadResults(queue, page, limit, failedBox.checked, results)
+  refs.results = el('div', 'queue-results')
+
+  refs.load = el('button', 'btn-ghost', 'Load results')
+  refs.load.addEventListener('click', () => {
+    entry.resultsLoaded = true
+    loadResults(queue, refs)
   })
 
-  actions.append(pageInput, limitInput, failedLabel, loadBtn)
+  actions.append(refs.page, refs.limit, failedLabel, refs.load)
 
   const remove = el('button', 'btn-ghost danger', 'Forget')
   remove.addEventListener('click', () => removeQueue(queue.id))
   actions.append(remove)
 
-  card.append(actions, results)
-  return card
+  card.append(actions, refs.results)
+
+  const entry = { card, refs, resultsLoaded: false }
+  return entry
 }
 
-let container = null
+function updateCard(queue, entry) {
+  const { refs } = entry
+  const pct = queue.total ? Math.round((queue.processed / queue.total) * 100) : 0
+  refs.fill.style.width = `${pct}%`
+  refs.fill.classList.toggle('done', queue.status === 'completed')
+
+  refs.meta.textContent = ''
+  refs.meta.append(
+    el(
+      'span',
+      null,
+      queue.status ? `${queue.status} · ${queue.processed}/${queue.total}` : 'not checked yet'
+    )
+  )
+  if (queue.error) refs.meta.append(el('span', 'muted', queue.error))
+
+  refs.toggle.textContent = timers.has(queue.id) ? 'Stop checking' : 'Check status'
+}
 
 export function render() {
   if (!container) return
-  container.textContent = ''
+
+  const plan = planCards([...cards.keys()], queues)
+
+  for (const id of plan.remove) {
+    const entry = cards.get(id)
+    if (entry) entry.card.remove()
+    cards.delete(id)
+  }
+
+  for (const id of plan.create) {
+    const queue = queues.find((q) => q.id === id)
+    cards.set(id, buildCard(queue))
+  }
+
+  // Existing cards keep their DOM — and therefore their loaded results.
+  for (const id of plan.update) {
+    const queue = queues.find((q) => q.id === id)
+    updateCard(queue, cards.get(id))
+  }
+
+  const empty = container.querySelector('.queues-empty')
   if (!queues.length) {
-    container.append(el('p', 'hint', 'Queues you create appear here, with their progress and results.'))
+    if (!empty) {
+      container.append(
+        el('p', 'hint queues-empty', 'Queues you create appear here, with their progress and results.')
+      )
+    }
     return
   }
-  for (const queue of queues) container.append(renderQueue(queue))
+  if (empty) empty.remove()
+
+  // Re-append in order. Moving a node that is already attached does not
+  // recreate it, so nothing inside a card is lost.
+  for (const id of plan.order) container.append(cards.get(id).card)
 }
 
 export function mountQueues(node, context) {
