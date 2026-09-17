@@ -1,6 +1,8 @@
 // Renders one API response: status, timing, rate-limit headers, body.
 // Every value arrives from the network, so it goes in via textContent.
 
+import { downloadJson, copyJson } from '../download.js'
+
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -22,7 +24,30 @@ function errorLines(body) {
   return []
 }
 
-export function renderResponse(container, result) {
+// Saving and copying what came back. `name` becomes part of the filename, so
+// a folder of downloads still says which endpoint each one came from.
+function saveRow(payload, name) {
+  const row = el('div', 'row-actions')
+
+  const save = el('button', 'btn-ghost', 'Download JSON')
+  save.addEventListener('click', () => downloadJson(payload, name))
+
+  const copy = el('button', 'btn-ghost', 'Copy JSON')
+  copy.addEventListener('click', async () => {
+    try {
+      await copyJson(payload)
+      copy.textContent = 'Copied'
+    } catch {
+      copy.textContent = 'Copy blocked'
+    }
+    setTimeout(() => (copy.textContent = 'Copy JSON'), 1200)
+  })
+
+  row.append(save, copy)
+  return row
+}
+
+export function renderResponse(container, result, name) {
   container.textContent = ''
 
   if (result.transportError) {
@@ -63,6 +88,12 @@ export function renderResponse(container, result) {
   const pre = el('pre', 'json')
   pre.textContent = result.body ? JSON.stringify(result.body, null, 2) : result.raw || '(empty body)'
   box.append(pre)
+
+  // A failed response is worth saving too — that is usually the one you want
+  // to hand to someone.
+  if (result.body !== null || result.raw) {
+    box.append(saveRow(result.body !== null ? result.body : result.raw, name || 'response'))
+  }
 
   container.append(box)
 }

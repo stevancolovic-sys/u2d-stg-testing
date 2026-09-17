@@ -74,7 +74,7 @@ async function authenticate() {
 
   btn.disabled = false
   btn.textContent = 'Get token'
-  renderResponse($('#response'), result)
+  renderResponse($('#response'), result, 'authenticate')
 
   if (result.body?.accessToken) {
     writeAuth({ apiKey, token: result.body.accessToken, issuedAt: new Date().toISOString() })
@@ -268,7 +268,7 @@ async function send() {
     const body = document.createElement('div')
     block.append(body)
     responses.append(block)
-    renderResponse(body, result)
+    renderResponse(body, result, endpoint.id)
 
     if (result.body) {
       renderResolvedWebhooks($('#resolved-webhooks'), result.body)

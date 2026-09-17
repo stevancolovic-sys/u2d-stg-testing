@@ -6,6 +6,7 @@
 
 import { callApi } from '../api.js'
 import { byId } from '../endpoints.js'
+import { downloadJson, copyJson } from '../download.js'
 
 const STORE = 'up2data.queues'
 const el = (tag, className, text) => {
@@ -117,6 +118,8 @@ async function loadResults(queue, page, limit, failed, target) {
   }
 
   const body = result.body || {}
+  const items = body.items ?? body
+
   const summary = el('div', 'result-head')
   summary.append(el('span', 'muted', `${(body.items || []).length} shown · total ${body.total ?? '?'}`))
   if (body.totalResults !== undefined) {
@@ -127,8 +130,79 @@ async function loadResults(queue, page, limit, failed, target) {
   target.append(summary)
 
   const pre = el('pre', 'json')
-  pre.textContent = JSON.stringify(body.items ?? body, null, 2)
+  pre.textContent = JSON.stringify(items, null, 2)
   target.append(pre)
+
+  const actions = el('div', 'row-actions')
+
+  const savePage = el('button', 'btn-ghost', 'Download page')
+  savePage.addEventListener('click', () =>
+    downloadJson(items, [queue.endpointId, queue.id, `page-${page}`])
+  )
+
+  const copy = el('button', 'btn-ghost', 'Copy JSON')
+  copy.addEventListener('click', async () => {
+    try {
+      await copyJson(items)
+      copy.textContent = 'Copied'
+    } catch {
+      copy.textContent = 'Copy blocked'
+    }
+    setTimeout(() => (copy.textContent = 'Copy JSON'), 1200)
+  })
+
+  const saveAll = el('button', 'btn-ghost', 'Download every page')
+  saveAll.addEventListener('click', () => downloadEveryPage(queue, limit, failed, saveAll))
+
+  actions.append(savePage, copy, saveAll)
+  target.append(actions)
+}
+
+// Walks the queue from page 0 until a page comes back short, then saves the
+// lot as one file. The API caps limit at 25, so a large queue is many calls —
+// the button reports progress rather than looking stuck.
+async function downloadEveryPage(queue, limit, failed, btn) {
+  const token = ctx.getToken()
+  if (!token) return
+
+  const label = btn.textContent
+  btn.disabled = true
+
+  const all = []
+  let page = 0
+
+  try {
+    for (;;) {
+      btn.textContent = `Fetching page ${page + 1}…`
+      const result = await callApi({
+        endpoint: byId('list'),
+        state: {
+          queueId: { value: queue.id },
+          page: { value: page },
+          limit: { value: limit },
+          failed: { enabled: failed, value: true },
+        },
+        token,
+      })
+
+      if (result.transportError || !result.ok) {
+        btn.textContent = result.transportError ? 'Transport error' : `Stopped at ${result.status}`
+        break
+      }
+
+      const items = result.body?.items || []
+      all.push(...items)
+      if (items.length < limit) {
+        downloadJson(all, [queue.endpointId, queue.id, 'all'])
+        btn.textContent = `Saved ${all.length}`
+        break
+      }
+      page += 1
+    }
+  } finally {
+    btn.disabled = false
+    setTimeout(() => (btn.textContent = label), 2000)
+  }
 }
 
 function renderQueue(queue) {

@@ -125,6 +125,7 @@ public/js/
   request.js         builds the body — decides what is sent
   credits.js         credit estimate
   api.js             fetch wrapper
+  download.js        saving and copying responses
   app.js             wiring, auth, localStorage
   ui/form.js         form generation
   ui/response.js     status, headers, body

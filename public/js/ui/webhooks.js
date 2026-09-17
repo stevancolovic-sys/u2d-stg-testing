@@ -1,6 +1,8 @@
 // Receives callbacks. The Worker stores whatever arrives at /hook/<id>;
 // this panel polls /hook/<id>/events and lists it.
 
+import { downloadJson } from '../download.js'
+
 const KEY = 'up2data.hookId'
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -25,6 +27,7 @@ export function hookUrl() {
 let timer = null
 let container = null
 let seen = 0
+let latest = []
 
 function renderEvent(event) {
   const items = Array.isArray(event.body) ? event.body : [event.body]
@@ -68,6 +71,7 @@ async function poll(listNode, counterNode) {
     const res = await fetch(`/hook/${hookId()}/events`)
     if (!res.ok) throw new Error(`events returned ${res.status}`)
     const { events } = await res.json()
+    latest = events
     seen = events.length
     counterNode.textContent = seen ? `${seen} received` : 'nothing yet'
     listNode.textContent = ''
@@ -114,13 +118,20 @@ export function mountWebhooks(node) {
 
   const bar = el('div', 'row-actions')
   const counter = el('span', 'muted', 'nothing yet')
+  const save = el('button', 'btn-ghost', 'Download JSON')
+  save.addEventListener('click', () => {
+    if (!latest.length) return
+    // The bodies are what a receiving server would have been sent; the
+    // wrapper keeps the arrival time and headers alongside them.
+    downloadJson(latest, ['callbacks', hookId()])
+  })
   const clear = el('button', 'btn-ghost danger', 'Clear')
   const list = el('div', 'callbacks')
   clear.addEventListener('click', async () => {
     await fetch(`/hook/${hookId()}`, { method: 'DELETE' })
     poll(list, counter)
   })
-  bar.append(counter, clear)
+  bar.append(counter, save, clear)
   container.append(bar, list)
 
   if (timer) clearInterval(timer)
