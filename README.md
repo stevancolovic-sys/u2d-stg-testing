@@ -93,6 +93,25 @@ against a real bill before trusting it on a large batch.
 The meter shows an upper bound. The API de-duplicates input before charging,
 and the search endpoints refund whatever they don't use.
 
+## The reference page
+
+`up2data-docs.html` is a standalone reference for the API — open it by double
+clicking, no server needed. Rebuild it after changing the registry:
+
+```bash
+npm run docs
+```
+
+It is generated from `public/js/endpoints.js`, so field lists and credit
+figures come from the same code the console charges by and cannot drift.
+Prose and response shapes live in `docs-src/`.
+
+What it does that the official page does not: every endpoint is its own entry
+with its own link (`#/endpoint/activity`), `/` focuses a search across
+endpoints, fields, guides and schemas, response shapes are collapsible trees
+rather than a wall of JSON, and each endpoint has an **Open in console**
+button that opens it here with the form ready (`?endpoint=<id>`).
+
 ## Layout
 
 ```
@@ -111,7 +130,9 @@ public/js/
   ui/response.js     status, headers, body
   ui/queues.js       status polling and result paging
   ui/webhooks.js     callback URL and live list
-test/                request builder, credit formulas, worker routes
+docs-src/            reference prose, response schemas, cost sentences
+scripts/             build-docs.mjs → up2data-docs.html
+test/                request builder, credit formulas, cost labels, worker routes
 ```
 
 Adding an endpoint means adding one object to `public/js/endpoints.js`.

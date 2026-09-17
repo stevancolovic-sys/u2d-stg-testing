@@ -367,7 +367,13 @@ function setupTabs() {
 renderRail()
 setupTabs()
 setupBaseUrl()
-selectEndpoint(localStorage.getItem(LAST_KEY) || 'authenticate')
+// The reference page links here as ?endpoint=<id>; a hidden id resolves too,
+// so a link to /posts lands on the activity picker that covers it.
+const asked = new URLSearchParams(location.search).get('endpoint')
+const askedEndpoint = asked && byId(asked)
+selectEndpoint(
+  askedEndpoint ? (askedEndpoint.hidden ? 'activity' : askedEndpoint.id) : localStorage.getItem(LAST_KEY) || 'authenticate'
+)
 renderAuth()
 setInterval(renderAuth, 60000)
 
