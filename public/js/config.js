@@ -5,10 +5,13 @@
 const KEY = 'up2data.baseUrl'
 
 export const PRESETS = [
+  { id: 'staging', label: 'Staging', url: 'https://api.staging.uptodata.io/api' },
   { id: 'production', label: 'Production', url: 'https://api.uptodata.io/api' },
 ]
 
-export const DEFAULT_BASE = 'https://api.uptodata.io/api'
+// Staging by default: this console is for testing, and a stray click should
+// not spend production credits.
+export const DEFAULT_BASE = PRESETS[0].url
 
 // Trailing slashes would double up against paths that already start with one.
 export const normalizeBase = (url) => String(url ?? '').trim().replace(/\/+$/, '')

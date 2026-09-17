@@ -34,9 +34,11 @@ npm run deploy
 ## Using it
 
 1. **Pick the API.** The `API` field at the top left is the base URL every
-   request goes to — point it at staging, production, or a local instance.
-   It is remembered per browser, and a token issued by one environment does
-   not work against another, so authenticate again after switching.
+   request goes to. It starts on **staging**
+   (`https://api.staging.uptodata.io/api`) so a stray click cannot spend
+   production credits; the Production preset switches it. The choice is
+   remembered per browser, and a token issued by one environment does not
+   work against the other, so authenticate again after switching.
 
 2. **Get a token.** Paste an API key (dashboard → Settings → Integrations →
    Create API Key) into the bar at the top. The token lasts 24 hours and the
