@@ -449,3 +449,26 @@ select.input { font-family: var(--sans); }
   .env { width: 100%; flex-wrap: wrap; }
   .env .input { width: 100%; }
 }
+
+/* ---- activity list picker ---- */
+
+.lists-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.list-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.list-option.off { opacity: 0.45; }
+.list-cost { color: var(--brass); font: 400 11.5px var(--mono); }
+
+.response-block + .response-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}

@@ -33,7 +33,10 @@ function coerce(field, raw) {
   }
 }
 
-const included = (field, entry) => field.required || Boolean(entry && entry.enabled)
+// uiOnly fields steer the request without being part of it — the activity
+// list picker decides which endpoints get called, not what their body says.
+const included = (field, entry) =>
+  !field.uiOnly && (field.required || Boolean(entry && entry.enabled))
 
 export function buildBody(fields, state) {
   const body = {}

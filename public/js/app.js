@@ -1,4 +1,4 @@
-import { ENDPOINTS, byId } from './endpoints.js'
+import { ENDPOINTS, VISIBLE, byId } from './endpoints.js'
 import { estimateCredits } from './credits.js'
 import { buildBody, toCurl } from './request.js'
 import { callApi, resolveUrl } from './api.js'
@@ -89,7 +89,7 @@ function renderRail() {
   rail.textContent = ''
   let group = null
 
-  for (const endpoint of ENDPOINTS) {
+  for (const endpoint of VISIBLE) {
     if (endpoint.group !== group) {
       group = endpoint.group
       const heading = document.createElement('div')
@@ -136,17 +136,37 @@ function loadState(endpoint) {
 
 const saveState = () => localStorage.setItem(stateKey(current.id), JSON.stringify(state))
 
+// An endpoint may fan out: the activity picker turns one click into one
+// request per list it selected.
+function routeOf(endpoint, formState) {
+  const ids = endpoint.route ? endpoint.route(formState) : [endpoint.id]
+  return ids.map(byId).filter(Boolean)
+}
+
+function describeRequest(endpoint, formState, token) {
+  const lines = [`${endpoint.method} ${resolveUrl(endpoint, formState)}`]
+  if (endpoint.method !== 'GET') lines.push('Content-Type: application/json')
+  if (endpoint.auth) lines.push(`Authorization: ${token ? token.slice(0, 18) + '…' : '(no token)'}`)
+  const body = endpoint.method === 'GET' ? null : buildBody(endpoint.fields, formState)
+  lines.push('')
+  lines.push(body ? JSON.stringify(body, null, 2) : '(no body)')
+  return lines.join('\n')
+}
+
 function renderPreview() {
-  const url = resolveUrl(current, state)
   const token = getToken()
+  const route = routeOf(current, state)
 
-  const lines = [`${current.method} ${url}`]
-  if (current.method !== 'GET') lines.push('Content-Type: application/json')
-  if (current.auth) lines.push(`Authorization: ${token ? token.slice(0, 18) + '…' : '(no token)'}`)
-  $('#preview-head').textContent = lines.join('\n')
-
-  const body = current.method === 'GET' ? null : buildBody(current.fields, state)
-  $('#preview-body').textContent = body ? JSON.stringify(body, null, 2) : '(no body)'
+  if (!route.length) {
+    $('#preview-head').textContent = 'Nothing selected — no request will be sent.'
+    $('#preview-body').textContent = ''
+  } else {
+    $('#preview-head').textContent =
+      route.length === 1 ? '1 request' : `${route.length} requests, sent in order`
+    $('#preview-body').textContent = route
+      .map((endpoint) => describeRequest(endpoint, state, token))
+      .join('\n\n' + '─'.repeat(40) + '\n\n')
+  }
 
   const estimate = estimateCredits(current, state)
   const meter = $('#meter')
@@ -170,9 +190,15 @@ function renderPreview() {
   }
 
   const send = $('#send')
-  const blocked = current.auth && !token
-  send.disabled = blocked
-  $('#send-note').textContent = blocked ? 'Authenticate first — this endpoint needs a token.' : ''
+  const noToken = current.auth && !token
+  const nothingPicked = route.length === 0
+  send.disabled = noToken || nothingPicked
+  send.textContent = route.length > 1 ? `Send ${route.length} requests` : 'Send request'
+  $('#send-note').textContent = noToken
+    ? 'Authenticate first — this endpoint needs a token.'
+    : nothingPicked
+      ? 'Pick at least one list.'
+      : ''
 }
 
 function onChange() {
@@ -202,6 +228,8 @@ function selectEndpoint(id) {
 
 async function send() {
   const estimate = estimateCredits(current, state)
+  const route = routeOf(current, state)
+  if (!route.length) return
 
   // Only the search endpoints can reserve thousands from one click, and an
   // unchecked limit is the way that happens by accident.
@@ -214,35 +242,60 @@ async function send() {
   }
 
   const btn = $('#send')
+  const label = btn.textContent
   btn.disabled = true
-  btn.textContent = 'Sending…'
 
-  const result = await callApi({ endpoint: current, state, token: getToken() })
+  const responses = $('#response')
+  responses.textContent = ''
+  $('#resolved-webhooks').textContent = ''
 
-  btn.disabled = false
-  btn.textContent = 'Send request'
+  const queueIds = []
+  let lastResult = null
 
-  renderResponse($('#response'), result)
-  renderResolvedWebhooks($('#resolved-webhooks'), result.body)
+  for (const [i, endpoint] of route.entries()) {
+    btn.textContent = route.length > 1 ? `Sending ${i + 1} of ${route.length}…` : 'Sending…'
+    const result = await callApi({ endpoint, state, token: getToken() })
+    lastResult = result
 
-  if (current.id === 'authenticate' && result.body?.accessToken) {
-    writeAuth({
-      apiKey: state.apiKey?.value || readAuth()?.apiKey || '',
-      token: result.body.accessToken,
-      issuedAt: new Date().toISOString(),
-    })
-    renderAuth()
+    const block = document.createElement('div')
+    block.className = 'response-block'
+    if (route.length > 1) {
+      const head = document.createElement('div')
+      head.className = 'label mono'
+      head.textContent = `${endpoint.method} ${endpoint.path}`
+      block.append(head)
+    }
+    const body = document.createElement('div')
+    block.append(body)
+    responses.append(block)
+    renderResponse(body, result)
+
+    if (result.body) {
+      renderResolvedWebhooks($('#resolved-webhooks'), result.body)
+      queueIds.push(...captureQueues(result.body))
+    }
+
+    if (endpoint.id === 'authenticate' && result.body?.accessToken) {
+      writeAuth({
+        apiKey: state.apiKey?.value || readAuth()?.apiKey || '',
+        token: result.body.accessToken,
+        issuedAt: new Date().toISOString(),
+      })
+      renderAuth()
+    }
   }
 
-  const ids = captureQueues(result.body)
-  if (ids.length) {
-    addQueues(ids, { endpointId: current.id, name: state.name?.value || '' })
+  btn.disabled = false
+  btn.textContent = label
+
+  if (queueIds.length) {
+    addQueues(queueIds, { endpointId: current.id, name: state.name?.value || '' })
     $('#tab-queues').click()
   }
 
   // A 429 on a live endpoint says exactly how long to wait.
-  const retry = Number(result.headers?.['retry-after'])
-  if (result.status === 429 && retry > 0) {
+  const retry = Number(lastResult?.headers?.['retry-after'])
+  if (lastResult?.status === 429 && retry > 0) {
     btn.disabled = true
     let left = retry
     $('#send-note').textContent = `Rate limited — retry in ${left}s`
@@ -332,12 +385,16 @@ $('#clear-auth').addEventListener('click', () => {
 })
 $('#send').addEventListener('click', send)
 $('#copy-curl').addEventListener('click', async () => {
-  const cmd = toCurl({
-    method: current.method,
-    url: resolveUrl(current, state),
-    token: current.auth ? getToken() : null,
-    body: current.method === 'GET' ? null : buildBody(current.fields, state),
-  })
+  const cmd = routeOf(current, state)
+    .map((endpoint) =>
+      toCurl({
+        method: endpoint.method,
+        url: resolveUrl(endpoint, state),
+        token: endpoint.auth ? getToken() : null,
+        body: endpoint.method === 'GET' ? null : buildBody(endpoint.fields, state),
+      })
+    )
+    .join('\n\n')
   await navigator.clipboard.writeText(cmd)
   const btn = $('#copy-curl')
   btn.textContent = 'Copied'

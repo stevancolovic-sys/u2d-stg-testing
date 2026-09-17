@@ -4,6 +4,7 @@
 // is generated from this array. Adding an endpoint means adding one object.
 
 import { parseLines } from './request.js'
+import { ACTIVITY_LISTS, routeActivity, activityCredits } from './activity.js'
 
 const PEOPLE_MAX = 2500
 const COMPANY_MAX = 1000
@@ -178,12 +179,39 @@ export const ENDPOINTS = [
     method: 'POST',
     path: '/open-refresh/activity',
     auth: true,
-    summary: 'Posts, comments and reactions in one record per profile.',
-    fields: [f.profiles, f.name(false), f.priority(false), f.webhookTags],
-    credits: perItem('profiles', 4),
+    summary: 'Pick the lists you want. One request per list, or a single bundled request when you want all three.',
+    // Which endpoints a send actually hits, decided by the list picker.
+    route: (state) => routeActivity(state.lists?.value),
+    fields: [
+      f.profiles,
+      {
+        name: 'lists',
+        label: 'lists',
+        type: 'lists',
+        required: true,
+        uiOnly: true,
+        options: ACTIVITY_LISTS,
+        default: [...ACTIVITY_LISTS],
+        hint: 'Each list costs 2 credits per profile on its own. All three bundle into one /activity request at 4, so two lists cost exactly what three do.',
+      },
+      f.name(false),
+      f.priority(false),
+      f.webhookTags,
+    ],
+    credits: (state) => {
+      const n = count(state, 'profiles')
+      const c = activityCredits(state.lists?.value, n)
+      if (!c.requests) return { amount: 0, reserved: false, note: 'pick at least one list' }
+      const plural = c.requests === 1 ? 'request' : 'requests'
+      const note = `${n} × ${c.perProfile} · ${c.requests} ${plural}` +
+        (c.thirdIsFree ? ' · the third list costs nothing extra at this price' : '') +
+        (c.bundled ? ' · bundled as /activity, 4 instead of 6' : '')
+      return { amount: c.amount, reserved: false, note }
+    },
   },
   {
     id: 'posts',
+    hidden: true,
     group: 'Activity',
     label: 'posts',
     method: 'POST',
@@ -195,6 +223,7 @@ export const ENDPOINTS = [
   },
   {
     id: 'comments',
+    hidden: true,
     group: 'Activity',
     label: 'comments',
     method: 'POST',
@@ -206,6 +235,7 @@ export const ENDPOINTS = [
   },
   {
     id: 'reactions',
+    hidden: true,
     group: 'Activity',
     label: 'reactions',
     method: 'POST',
@@ -359,3 +389,7 @@ export const ENDPOINTS = [
 ]
 
 export const byId = (id) => ENDPOINTS.find((e) => e.id === id)
+
+// What the rail lists. The single-list activity endpoints are reachable
+// through the activity picker rather than on their own.
+export const VISIBLE = ENDPOINTS.filter((e) => !e.hidden)

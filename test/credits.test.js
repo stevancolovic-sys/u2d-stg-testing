@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ENDPOINTS, byId } from '../public/js/endpoints.js'
+import { ENDPOINTS, VISIBLE, byId } from '../public/js/endpoints.js'
 import { estimateCredits } from '../public/js/credits.js'
 
 const est = (id, state) => estimateCredits(byId(id), state)
@@ -15,6 +15,21 @@ const companyLink = (extra = {}) => ({
 describe('registry', () => {
   it('covers all sixteen endpoints', () => {
     expect(ENDPOINTS.length).toBe(16)
+  })
+
+  it('hides the single-list activity endpoints from the rail', () => {
+    expect(VISIBLE.length).toBe(13)
+    for (const id of ['posts', 'comments', 'reactions']) {
+      expect(VISIBLE.some((e) => e.id === id), id).toBe(false)
+      expect(byId(id), id).toBeTruthy()
+    }
+  })
+
+  it('routes activity to the endpoints its picker selected', () => {
+    const route = (lists) => byId('activity').route({ lists: { value: lists } })
+    expect(route(['posts', 'comments', 'reactions'])).toEqual(['activity'])
+    expect(route(['comments', 'reactions'])).toEqual(['comments', 'reactions'])
+    expect(route([])).toEqual([])
   })
 
   it('has unique ids', () => {
@@ -66,8 +81,30 @@ describe('estimateCredits', () => {
     expect(est('companies-bulk', { companies: { value: 'a\nb\nc\nd' } }).amount).toBe(4)
   })
 
-  it('charges 4 per profile for activity', () => {
-    expect(est('activity', { profiles: { value: 'a\nb' } }).amount).toBe(8)
+  it('charges 4 per profile when activity asks for all three lists', () => {
+    const state = { profiles: { value: 'a\nb' }, lists: { value: ['posts', 'comments', 'reactions'] } }
+    const r = est('activity', state)
+    expect(r.amount).toBe(8)
+    expect(r.note).toContain('1 request')
+  })
+
+  it('charges 2 per profile when activity asks for one list', () => {
+    const r = est('activity', { profiles: { value: 'a\nb' }, lists: { value: ['comments'] } })
+    expect(r.amount).toBe(4)
+  })
+
+  it('charges the same for two activity lists as for three, and says so', () => {
+    const two = est('activity', { profiles: { value: 'a\nb' }, lists: { value: ['comments', 'reactions'] } })
+    const three = est('activity', { profiles: { value: 'a\nb' }, lists: { value: ['posts', 'comments', 'reactions'] } })
+    expect(two.amount).toBe(three.amount)
+    expect(two.note).toContain('2 requests')
+    expect(two.note).toContain('costs nothing extra')
+  })
+
+  it('costs nothing when no activity list is picked', () => {
+    const r = est('activity', { profiles: { value: 'a\nb' }, lists: { value: [] } })
+    expect(r.amount).toBe(0)
+    expect(r.note).toContain('at least one list')
   })
 
   it('charges 2 per profile for posts, comments and reactions', () => {

@@ -45,6 +45,19 @@ describe('buildBody', () => {
     expect(buildBody(fields, { ...base, priority: { value: '1' } }).priority).toBe(1)
   })
 
+  it('never puts a uiOnly field in the body, required or not', () => {
+    const withPicker = [
+      { name: 'profiles', type: 'lines', required: true },
+      { name: 'lists', type: 'lists', required: true, uiOnly: true },
+    ]
+    const body = buildBody(withPicker, {
+      profiles: { value: 'a' },
+      lists: { value: ['posts', 'comments'] },
+    })
+    expect(body).toEqual({ profiles: ['a'] })
+    expect('lists' in body).toBe(false)
+  })
+
   it('builds salesNavigatorLinks and omits an unchecked per-link limit', () => {
     const linkFields = [{ name: 'salesNavigatorLinks', type: 'links', required: true }]
     const body = buildBody(linkFields, {

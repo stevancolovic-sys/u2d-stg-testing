@@ -71,8 +71,9 @@ npm run deploy
 |---|---|
 | `profiles-bulk` | 1 per profile, 2 with `withFollowersAndConnections` |
 | `companies-bulk` | 1 per company |
-| `activity` | 4 per profile |
-| `posts` / `comments` / `reactions` | 2 per profile |
+| `activity`, all three lists | 4 per profile, one request |
+| `activity`, one list | 2 per profile |
+| `activity`, two lists | 4 per profile, two requests — same price as all three |
 | `latest-post` | 5 per profile |
 | `post-by-url` | 1 per post |
 | `profile` (live) | 2, or 4 with `withFollowersAndConnections` |
@@ -92,6 +93,7 @@ public/index.html    shell
 public/app.css       styling
 public/js/
   config.js          which API base URL requests go to
+  activity.js        which activity lists to fetch, and the cheapest route
   endpoints.js       the 16 endpoints: fields and credit formulas
   request.js         builds the body — decides what is sent
   credits.js         credit estimate
@@ -105,6 +107,23 @@ test/                request builder, credit formulas, worker routes
 ```
 
 Adding an endpoint means adding one object to `public/js/endpoints.js`.
+
+## Activity lists
+
+`activity` is a picker rather than a single endpoint. Tick `posts`,
+`comments` and `reactions` in any combination and the console sends the
+cheapest requests that cover them:
+
+- **one list** → one request to `/open-refresh/posts`, `/comments` or
+  `/reactions`, 2 credits per profile
+- **two lists** → two requests, 4 credits per profile
+- **all three** → one request to `/open-refresh/activity`, 4 credits per
+  profile — the bundle, rather than 6 for three separate calls
+
+Two lists therefore cost exactly what three do, and the meter says so. It
+still sends only what you ticked: the single-list endpoints answer with their
+own callback `type` (`ActivityComments`, `ActivityReactions`) and their own
+`partial` flags, which is usually the thing being tested.
 
 ## Notes
 

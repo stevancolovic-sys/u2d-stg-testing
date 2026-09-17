@@ -17,7 +17,12 @@ export function initialState(endpoint) {
   for (const field of endpoint.fields) {
     state[field.name] = {
       enabled: false,
-      value: field.type === 'links' ? [{ url: '', limitEnabled: false, limit: '' }] : field.default ?? '',
+      value:
+        field.type === 'links'
+          ? [{ url: '', limitEnabled: false, limit: '' }]
+          : Array.isArray(field.default)
+            ? [...field.default]
+            : field.default ?? '',
     }
   }
   return state
@@ -92,8 +97,33 @@ function renderLinks(field, entry, onChange) {
   return wrap
 }
 
+function renderLists(field, entry, onChange) {
+  const wrap = el('div', 'lists-pick')
+  if (!Array.isArray(entry.value)) entry.value = [...(field.default || [])]
+
+  for (const option of field.options) {
+    const row = el('label', 'list-option')
+    const box = el('input')
+    box.type = 'checkbox'
+    box.checked = entry.value.includes(option)
+    box.addEventListener('change', () => {
+      const picked = new Set(entry.value)
+      if (box.checked) picked.add(option)
+      else picked.delete(option)
+      entry.value = field.options.filter((o) => picked.has(o))
+      row.classList.toggle('off', !box.checked)
+      onChange()
+    })
+    if (!box.checked) row.classList.add('off')
+    row.append(box, el('span', 'key mono', option), el('span', 'list-cost', '+2'))
+    wrap.append(row)
+  }
+  return wrap
+}
+
 function renderControl(field, entry, onChange) {
   if (field.type === 'links') return renderLinks(field, entry, onChange)
+  if (field.type === 'lists') return renderLists(field, entry, onChange)
 
   if (field.type === 'lines' || field.type === 'tags') {
     const box = el('textarea', 'input textarea')
