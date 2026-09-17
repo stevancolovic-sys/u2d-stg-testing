@@ -1,9 +1,8 @@
 import { buildBody, buildQuery } from './request.js'
-
-export const BASE = 'https://api.uptodata.io/api'
+import { getBase } from './config.js'
 
 export function resolveUrl(endpoint, state) {
-  let url = BASE + endpoint.path
+  let url = getBase() + endpoint.path
   if (endpoint.method === 'GET') {
     const q = buildQuery(endpoint.fields, state)
     if (q) url += `?${q}`

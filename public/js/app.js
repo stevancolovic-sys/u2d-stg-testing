@@ -2,6 +2,7 @@ import { ENDPOINTS, byId } from './endpoints.js'
 import { estimateCredits } from './credits.js'
 import { buildBody, toCurl } from './request.js'
 import { callApi, resolveUrl } from './api.js'
+import { PRESETS, getBase, setBase, presetFor } from './config.js'
 import { initialState, renderForm, refreshMarkers } from './ui/form.js'
 import { renderResponse, captureQueues, renderResolvedWebhooks } from './ui/response.js'
 import { mountQueues, addQueues } from './ui/queues.js'
@@ -258,6 +259,43 @@ async function send() {
   }
 }
 
+// --- which API ------------------------------------------------------------
+
+function renderPresets() {
+  const wrap = $('#base-presets')
+  wrap.textContent = ''
+  const active = presetFor(getBase())
+  for (const preset of PRESETS) {
+    const btn = document.createElement('button')
+    btn.className = 'preset'
+    btn.type = 'button'
+    btn.textContent = preset.label
+    if (active && active.id === preset.id) btn.classList.add('on')
+    btn.addEventListener('click', () => {
+      $('#base-url').value = setBase(preset.url)
+      renderPresets()
+      renderPreview()
+    })
+    wrap.append(btn)
+  }
+}
+
+function setupBaseUrl() {
+  const input = $('#base-url')
+  input.value = getBase()
+  input.addEventListener('input', () => {
+    setBase(input.value)
+    renderPresets()
+    renderPreview()
+  })
+  // A token is issued by one environment and meaningless to the other.
+  input.addEventListener('change', () => {
+    input.value = getBase()
+    renderPresets()
+  })
+  renderPresets()
+}
+
 // --- tabs ----------------------------------------------------------------
 
 function setupTabs() {
@@ -275,6 +313,7 @@ function setupTabs() {
 
 renderRail()
 setupTabs()
+setupBaseUrl()
 selectEndpoint(localStorage.getItem(LAST_KEY) || 'authenticate')
 renderAuth()
 setInterval(renderAuth, 60000)

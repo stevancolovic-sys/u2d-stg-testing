@@ -424,3 +424,28 @@ select.input { font-family: var(--sans); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---- which API ---- */
+
+.env { display: flex; align-items: center; gap: 8px; }
+.env-label { color: var(--muted); font-size: 12px; }
+.env .input { width: 280px; font-size: 12px; }
+
+.presets { display: flex; gap: 4px; }
+.preset {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: none;
+  color: var(--muted);
+  font: 400 12px var(--sans);
+  cursor: pointer;
+}
+.preset:hover { color: var(--text); }
+.preset.on { border-color: var(--brass); color: var(--brass); }
+.preset:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .env { width: 100%; flex-wrap: wrap; }
+  .env .input { width: 100%; }
+}

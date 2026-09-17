@@ -33,24 +33,29 @@ npm run deploy
 
 ## Using it
 
-1. **Get a token.** Paste an API key (dashboard → Settings → Integrations →
+1. **Pick the API.** The `API` field at the top left is the base URL every
+   request goes to — point it at staging, production, or a local instance.
+   It is remembered per browser, and a token issued by one environment does
+   not work against another, so authenticate again after switching.
+
+2. **Get a token.** Paste an API key (dashboard → Settings → Integrations →
    Create API Key) into the bar at the top. The token lasts 24 hours and the
    bar counts down. "Clear credentials" wipes the key and token from this
    browser.
 
-2. **Pick an endpoint.** Required fields sit plain. Every optional field has
+3. **Pick an endpoint.** Required fields sit plain. Every optional field has
    a checkbox: unchecked means the key is left out of the request entirely,
    not sent as `null` or `false`. The Request tab shows the exact body.
 
-3. **Watch the credit meter** above the send button. For the three search
+4. **Watch the credit meter** above the send button. For the three search
    endpoints it turns red and asks for confirmation, because those reserve
    credits against each link's limit — and a link with no limit reserves the
    maximum (2,500 for people searches, 1,000 for company searches).
 
-4. **Queues** appear in the Queues tab as you create them, polling their
+5. **Queues** appear in the Queues tab as you create them, polling their
    status until they complete, with paged results underneath.
 
-5. **Callbacks** need one setup step. The Callbacks tab shows a URL; register
+6. **Callbacks** need one setup step. The Callbacks tab shows a URL; register
    it in the dashboard under Settings → Integrations → Create Webhook with a
    tag such as `test`. Then tick `webhookTags` on a request and enter that
    tag, and the results arrive in the tab.
@@ -84,6 +89,7 @@ src/worker.js        routing, KV-backed callback store
 public/index.html    shell
 public/app.css       styling
 public/js/
+  config.js          which API base URL requests go to
   endpoints.js       the 16 endpoints: fields and credit formulas
   request.js         builds the body — decides what is sent
   credits.js         credit estimate
