@@ -1,0 +1,12 @@
+name = "up2data-tester"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+[[kv_namespaces]]
+binding = "HOOKS"
+id = "replace_after_wrangler_kv_namespace_create"
+preview_id = "replace_after_wrangler_kv_namespace_create"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
