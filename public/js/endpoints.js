@@ -21,7 +21,7 @@ const flagOn = (state) => {
 const perItem = (listField, rate, flagRate = null) => (state) => {
   const n = count(state, listField)
   const each = flagRate && flagOn(state) ? flagRate : rate
-  return { amount: n * each, reserved: false, note: `${n} × ${each} credits` }
+  return { amount: n * each, reserved: false, note: `${n} × ${each}` }
 }
 
 const isPeopleSearch = (url) => String(url || '').includes('/sales/search/people')

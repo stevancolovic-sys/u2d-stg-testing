@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Up2Data console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-name">Up2Data console</span>
+    <span class="brand-sub">internal</span>
+  </div>
+  <div class="auth">
+    <input id="api-key" class="input" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
+    <button id="auth-btn" class="btn">Get token</button>
+    <button id="clear-auth" class="btn-ghost danger">Clear credentials</button>
+    <span id="auth-status" class="auth-status">No token.</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <nav id="rail" class="rail" aria-label="Endpoints"></nav>
+
+  <section class="work">
+    <div class="work-head">
+      <h1 id="endpoint-label" class="mono"></h1>
+      <p id="endpoint-summary"></p>
+      <code id="endpoint-path" class="mono muted"></code>
+    </div>
+
+    <div id="form" class="form"></div>
+
+    <div class="dispatch">
+      <div id="meter" class="meter"></div>
+      <div class="dispatch-actions">
+        <button id="send" class="btn btn-send">Send request</button>
+        <button id="copy-curl" class="btn-ghost">Copy as curl</button>
+      </div>
+      <p id="send-note" class="hint"></p>
+    </div>
+  </section>
+
+  <section class="monitor">
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-panel="panel-response" role="tab">Response</button>
+      <button id="tab-queues" class="tab" data-panel="panel-queues" role="tab">Queues</button>
+      <button class="tab" data-panel="panel-webhooks" role="tab">Callbacks</button>
+      <button class="tab" data-panel="panel-preview" role="tab">Request</button>
+    </div>
+
+    <div id="panel-response" class="panel">
+      <div id="resolved-webhooks" class="resolved"></div>
+      <div id="response">
+        <p class="hint">Responses appear here — status, timing, rate-limit headers and the body.</p>
+      </div>
+    </div>
+
+    <div id="panel-queues" class="panel" hidden>
+      <div id="queues"></div>
+    </div>
+
+    <div id="panel-webhooks" class="panel" hidden>
+      <div id="webhooks"></div>
+    </div>
+
+    <div id="panel-preview" class="panel" hidden>
+      <div class="label">What gets sent</div>
+      <pre id="preview-head" class="json"></pre>
+      <pre id="preview-body" class="json"></pre>
+    </div>
+  </section>
+
+</main>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
