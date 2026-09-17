@@ -69,18 +69,26 @@ npm run deploy
 
 | Endpoint | Credits |
 |---|---|
-| `profiles-bulk` | 1 per profile, 2 with `withFollowersAndConnections` |
+| `profiles-bulk` | 1 per profile, 2 with `withFollowersAndConnections` or `withFullSkillsAndEndorsements` |
 | `companies-bulk` | 1 per company |
 | `activity`, all three lists | 4 per profile, one request |
 | `activity`, one list | 2 per profile |
 | `activity`, two lists | 4 per profile, two requests — same price as all three |
 | `latest-post` | 5 per profile |
 | `post-by-url` | 1 per post |
-| `profile` (live) | 2, or 4 with `withFollowersAndConnections` |
+| `profile` (live) | 2, or 4 with either profile flag — the two do not stack |
 | `company` (live) | 2 |
 | `search` | limit × 3 per link; × 4 for people links with the followers flag |
 | `partial-sales-profiles` / `partial-sales-companies` | limit × 1 per link |
 | `status` / `list` / `authenticate` | free |
+
+`withFullSkillsAndEndorsements` adds `skillsWithEndorsements` (every skill
+with its endorsement count) and lifts the 20-skill cap on `skills`. The API
+documents the exact surcharge only for the live endpoint — 2 credits becomes
+4, and enabling both flags does not stack. For `profiles-bulk` it says only
+"additional credits on top of the base rate", so the meter assumes the same
+rule there: 1 becomes 2, and the two flags do not stack. Worth confirming
+against a real bill before trusting it on a large batch.
 
 The meter shows an upper bound. The API de-duplicates input before charging,
 and the search endpoints refund whatever they don't use.

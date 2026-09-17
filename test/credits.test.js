@@ -77,6 +77,34 @@ describe('estimateCredits', () => {
     ).toBe(2)
   })
 
+  it('charges 2 per profile for the full-skills flag, like the followers flag', () => {
+    expect(
+      est('profiles-bulk', {
+        profiles: { value: 'a\nb\nc' },
+        withFullSkillsAndEndorsements: { enabled: true, value: true },
+      }).amount
+    ).toBe(6)
+  })
+
+  it('does not stack the two profile flags', () => {
+    expect(
+      est('profiles-bulk', {
+        profiles: { value: 'a\nb\nc' },
+        withFollowersAndConnections: { enabled: true, value: true },
+        withFullSkillsAndEndorsements: { enabled: true, value: true },
+      }).amount
+    ).toBe(6)
+  })
+
+  it('ignores the full-skills flag when it is unchecked', () => {
+    expect(
+      est('profiles-bulk', {
+        profiles: { value: 'a\nb' },
+        withFullSkillsAndEndorsements: { enabled: false, value: true },
+      }).amount
+    ).toBe(2)
+  })
+
   it('charges 1 per company', () => {
     expect(est('companies-bulk', { companies: { value: 'a\nb\nc\nd' } }).amount).toBe(4)
   })
@@ -129,6 +157,33 @@ describe('estimateCredits', () => {
         withFollowersAndConnections: { enabled: true, value: true },
       }).amount
     ).toBe(4)
+  })
+
+  it('charges 4 for a live profile with full skills, and does not stack with followers', () => {
+    const both = {
+      profile: { value: 'x' },
+      withFollowersAndConnections: { enabled: true, value: true },
+      withFullSkillsAndEndorsements: { enabled: true, value: true },
+    }
+    expect(est('profile', { profile: { value: 'x' }, withFullSkillsAndEndorsements: { enabled: true, value: true } }).amount).toBe(4)
+    expect(est('profile', both).amount).toBe(4)
+  })
+
+  it('does not offer the full-skills flag where the API does not accept it', () => {
+    for (const id of ['companies-bulk', 'activity', 'latest-post', 'post-by-url', 'company', 'search', 'partial-sales-profiles', 'partial-sales-companies']) {
+      const names = byId(id).fields.map((f) => f.name)
+      expect(names.includes('withFullSkillsAndEndorsements'), id).toBe(false)
+    }
+  })
+
+  it('leaves search priced on the followers flag alone', () => {
+    const link = { url: 'https://www.linkedin.com/sales/search/people?query=a', limitEnabled: true, limit: 100 }
+    expect(
+      est('search', {
+        salesNavigatorLinks: { value: [link] },
+        withFullSkillsAndEndorsements: { enabled: true, value: true },
+      }).amount
+    ).toBe(300)
   })
 
   it('charges 2 for a live company', () => {

@@ -11,17 +11,23 @@ const COMPANY_MAX = 1000
 
 const count = (state, field) => parseLines(state[field]?.value).length
 
-const flagOn = (state) => {
-  const entry = state.withFollowersAndConnections
+const flagOn = (state, name = 'withFollowersAndConnections') => {
+  const entry = state[name]
   return Boolean(entry && entry.enabled && entry.value)
 }
+
+// Two flags, one surcharge: the docs are explicit for the live endpoint that
+// enabling both does not stack, so either one lifts the rate and neither
+// lifts it twice.
+const costFlagOn = (state) =>
+  flagOn(state, 'withFollowersAndConnections') || flagOn(state, 'withFullSkillsAndEndorsements')
 
 // rate: credits per profile. flagRate: the rate when withFollowersAndConnections
 // is checked AND true — an unchecked box means the key is not sent, so the
 // cheaper rate applies.
 const perItem = (listField, rate, flagRate = null) => (state) => {
   const n = count(state, listField)
-  const each = flagRate && flagOn(state) ? flagRate : rate
+  const each = flagRate && costFlagOn(state) ? flagRate : rate
   return { amount: n * each, reserved: false, note: `${n} × ${each}` }
 }
 
@@ -110,6 +116,14 @@ const f = {
     default: true,
     hint: 'Also collects connectionsCount and followersCount. Doubles the cost, charged at enqueue even if the counts turn out to be unavailable.',
   },
+  withFullSkills: {
+    name: 'withFullSkillsAndEndorsements',
+    label: 'withFullSkillsAndEndorsements',
+    type: 'boolean',
+    required: false,
+    default: true,
+    hint: 'Adds skillsWithEndorsements — every skill paired with its endorsement count — and lifts the 20-skill cap on skills. Same surcharge as withFollowersAndConnections, and enabling both does not stack.',
+  },
   webhookTags: {
     name: 'webhookTags',
     label: 'webhookTags',
@@ -157,7 +171,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/profiles-bulk',
     auth: true,
     summary: 'Enqueue LinkedIn profiles for enrichment in bulk.',
-    fields: [f.name(true), f.profiles, f.priority(true), f.withFollowers, f.webhookTags],
+    fields: [f.name(true), f.profiles, f.priority(true), f.withFollowers, f.withFullSkills, f.webhookTags],
     credits: perItem('profiles', 1, 2),
   },
   {
@@ -288,11 +302,12 @@ export const ENDPOINTS = [
         hint: 'A linkedin.com/in/ URL or a bare slug.',
       },
       f.withFollowers,
+      f.withFullSkills,
     ],
     credits: (state) => ({
-      amount: flagOn(state) ? 4 : 2,
+      amount: costFlagOn(state) ? 4 : 2,
       reserved: false,
-      note: 'charged on a 200 and on a 404 alike',
+      note: 'charged on a 200 and on a 404 alike; enabling both flags does not stack',
     }),
   },
   {
