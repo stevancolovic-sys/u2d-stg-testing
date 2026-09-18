@@ -11,6 +11,12 @@
 const RETENTION_MS = 24 * 60 * 60 * 1000
 const MAX_EVENTS = 200
 
+// A webhook pointed at the bare origin is the obvious thing to configure, so
+// it has to work: a POST anywhere outside /hook/ lands in this bucket rather
+// than in a 405. Answering non-2xx would push the delivery into the API's
+// retry schedule and then drop it.
+const DEFAULT_HOOK = 'default'
+
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -34,7 +40,7 @@ export class HookStore {
   prune(now) {
     this.sql.exec('DELETE FROM events WHERE created_ms < ?', now - RETENTION_MS)
     this.sql.exec(
-      'DELETE FROM events WHERE id NOT IN (SELECT id FROM events ORDER BY created_ms DESC, id DESC LIMIT ?)',
+      'DELETE FROM events WHERE rowid NOT IN (SELECT rowid FROM events ORDER BY rowid DESC LIMIT ?)',
       MAX_EVENTS
     )
   }
@@ -62,9 +68,10 @@ export class HookStore {
   }
 
   list() {
-    const rows = this.sql
-      .exec('SELECT * FROM events ORDER BY created_ms DESC, id DESC')
-      .toArray()
+    // Ordered by rowid, not by timestamp: a burst of callbacks can share a
+    // millisecond, and insertion order is the only account of what arrived
+    // first that does not depend on clock resolution.
+    const rows = this.sql.exec('SELECT * FROM events ORDER BY rowid DESC').toArray()
     return rows.map((row) => ({
       id: row.id,
       receivedAt: row.received_at,
@@ -97,25 +104,38 @@ export default {
     const url = new URL(request.url)
     const parts = url.pathname.split('/').filter(Boolean)
 
+    // Always answer 200 to a callback, even if storage fails. A non-2xx puts
+    // the delivery into the API's retry schedule (10min, 1h, 8h, 24h) and
+    // then abandons it.
+    const store = async (id) => {
+      const stub = env.HOOKS.get(env.HOOKS.idFromName(id))
+      try {
+        return await stub.fetch(
+          new Request('https://do/', {
+            method: 'POST',
+            headers: request.headers,
+            body: request.body,
+          })
+        )
+      } catch (err) {
+        console.error('hook store failed', err)
+        return json({ received: false })
+      }
+    }
+
     if (parts[0] === 'hook' && parts[1]) {
-      const stub = env.HOOKS.get(env.HOOKS.idFromName(parts[1]))
-      const inner = parts[2] === 'events' ? 'https://do/events' : 'https://do/'
+      const id = parts[1]
+      const stub = env.HOOKS.get(env.HOOKS.idFromName(id))
 
       if (parts[2] && parts[2] !== 'events') return json({ error: 'Not found' }, 404)
+      if (request.method === 'POST' && !parts[2]) return store(id)
 
-      if (request.method === 'POST' && !parts[2]) {
-        // Always answer 200, even if storage fails. A non-2xx puts the
-        // delivery into the API's retry schedule (10min, 1h, 8h, 24h),
-        // which is not what a dropped test callback deserves.
-        try {
-          return await stub.fetch(new Request(inner, { method: 'POST', headers: request.headers, body: request.body }))
-        } catch (err) {
-          console.error('hook store failed', err)
-          return json({ received: false })
-        }
-      }
+      const inner = parts[2] === 'events' ? 'https://do/events' : 'https://do/'
       return stub.fetch(new Request(inner, { method: request.method }))
     }
+
+    // A webhook configured against the origin itself, or any other path.
+    if (request.method === 'POST') return store(DEFAULT_HOOK)
 
     if (env.ASSETS) return env.ASSETS.fetch(request)
     return json({ error: 'Not found' }, 404)

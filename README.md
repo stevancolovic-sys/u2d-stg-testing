@@ -58,9 +58,16 @@ npm run deploy
    status until they complete, with paged results underneath.
 
 6. **Callbacks** need one setup step. The Callbacks tab shows a URL; register
-   it in the dashboard under Settings → Integrations → Create Webhook with a
-   tag such as `test`. Then tick `webhookTags` on a request and enter that
-   tag, and the results arrive in the tab.
+   it in the dashboard under Settings → Integrations → Create Webhook. Then
+   tick `webhookTags` on a request and enter its tag, and the results arrive
+   in the tab.
+
+   A POST to the Worker with no `/hook/` path — the bare origin included —
+   lands in the shared `default` bucket, which is what the tab watches out of
+   the box. Pointing a webhook at the origin is the obvious thing to
+   configure, so it works rather than answering 405 and sending the delivery
+   into a retry schedule it would eventually lose. "Use a private URL" swaps
+   to a bucket only that path feeds.
 
    Anyone holding that URL can read what arrives at it, so send test data
    only and don't configure a real secret in the webhook's custom headers.

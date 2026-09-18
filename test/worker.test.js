@@ -59,3 +59,27 @@ describe('hook sink', () => {
     expect((await call('PUT', '/hook/abc')).status).toBe(404)
   })
 })
+
+describe('a webhook pointed at the origin', () => {
+  it('accepts a POST to the root instead of answering 405', async () => {
+    const res = await call('POST', '/', JSON.stringify([{ type: 'Profile', queueId: 'q1' }]))
+    expect(res.status).toBe(200)
+  })
+
+  it('files it under the default bucket where the panel can read it', async () => {
+    await call('POST', '/', JSON.stringify([{ type: 'Company', queueId: 'q-root' }]))
+    const { events } = await (await call('GET', '/hook/default/events')).json()
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0].body[0].queueId).toBe('q-root')
+  })
+
+  it('accepts a POST to any other path too, rather than dropping the delivery', async () => {
+    expect((await call('POST', '/callbacks', JSON.stringify({ n: 1 }))).status).toBe(200)
+    expect((await call('POST', '/webhook/up2data', JSON.stringify({ n: 2 }))).status).toBe(200)
+  })
+
+  it('still serves the page on a GET', async () => {
+    const res = await call('GET', '/nope')
+    expect(res.status).toBe(404)
+  })
+})

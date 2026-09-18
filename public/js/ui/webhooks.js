@@ -4,6 +4,10 @@
 import { downloadJson } from '../download.js'
 
 const KEY = 'up2data.hookId'
+
+// A webhook pointed at the bare origin lands here. It is the obvious thing to
+// configure in a dashboard, so it is the default the panel watches.
+export const SHARED = 'default'
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -12,16 +16,27 @@ const el = (tag, className, text) => {
 }
 
 export function hookId() {
-  let id = localStorage.getItem(KEY)
-  if (!id) {
-    id = crypto.randomUUID().replace(/-/g, '').slice(0, 20)
+  try {
+    return localStorage.getItem(KEY) || SHARED
+  } catch {
+    return SHARED
+  }
+}
+
+export function setHookId(id) {
+  try {
     localStorage.setItem(KEY, id)
+  } catch {
+    /* a browser refusing storage still gets a working session */
   }
   return id
 }
 
-export function hookUrl() {
-  return `${location.origin}/hook/${hookId()}`
+export const privateId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 20)
+
+// The shared bucket answers at the origin itself; a private one needs its path.
+export function hookUrl(id = hookId()) {
+  return id === SHARED ? `${location.origin}/` : `${location.origin}/hook/${id}`
 }
 
 let timer = null
@@ -104,12 +119,34 @@ export function mountWebhooks(node) {
   urlRow.append(url, copy)
   container.append(urlRow)
 
+  const which = el('div', 'row-actions')
+  const shared = hookId() === SHARED
+  which.append(
+    el(
+      'span',
+      'muted',
+      shared
+        ? 'Shared bucket — anything posted to this Worker with no /hook path arrives here.'
+        : 'Private bucket — only callbacks sent to this exact path arrive here.'
+    )
+  )
+  const swap = el('button', 'btn-ghost', shared ? 'Use a private URL' : 'Use the shared URL')
+  swap.addEventListener('click', () => {
+    setHookId(shared ? privateId() : SHARED)
+    mountWebhooks(container)
+  })
+  which.append(swap)
+  container.append(which)
+
   const steps = el('ol', 'steps')
   steps.append(el('li', null, 'Copy the URL above.'))
   steps.append(
-    el('li', null, 'In the Up2Data dashboard, open Settings → Integrations → Create Webhook, paste it, and give the webhook a tag such as test.')
+    el('li', null, 'In the Up2Data dashboard, open Settings → Integrations → Create Webhook and paste it.')
   )
-  steps.append(el('li', null, 'Back here, tick webhookTags on a request and enter that tag.'))
+  steps.append(
+    el('li', null, 'Give the webhook a tag such as test — then a request can name it in webhookTags and reach only this endpoint. Leave it untagged and every request on the team delivers here.')
+  )
+  steps.append(el('li', null, 'Back here, tick webhookTags on a request and enter that tag. The enqueue response echoes the webhooks it resolved to — an empty list there means nothing will be delivered.'))
   container.append(steps)
 
   container.append(
