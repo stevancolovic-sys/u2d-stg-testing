@@ -221,3 +221,7 @@ The whole run downloads as JSON, one entry per request.
   `/open-refresh/posts` and `/open-refresh/latest-post`. The registry follows
   the endpoint descriptions, not those examples.
 - Callbacks are kept for 24 hours, and only the newest 200 per hook id.
+- `wrangler.toml` sets `run_worker_first` on the assets config. Without it the
+  asset layer answers before the Worker runs and replies 405 to a POST at `/`,
+  because `index.html` lives there — a webhook pointed at the origin could
+  never reach the sink, and every delivery would fail.

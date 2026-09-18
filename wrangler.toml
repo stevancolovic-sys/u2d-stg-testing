@@ -16,3 +16,8 @@ new_sqlite_classes = ["HookStore"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# Without this the asset layer answers before the Worker ever runs, and it
+# replies 405 to a POST at "/" because index.html lives there — so a webhook
+# pointed at the origin could never reach the sink. The Worker now sees every
+# request and hands the ones it does not own back to ASSETS.
+run_worker_first = true
