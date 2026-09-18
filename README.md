@@ -155,6 +155,21 @@ still sends only what you ticked: the single-list endpoints answer with their
 own callback `type` (`ActivityComments`, `ActivityReactions`) and their own
 `partial` flags, which is usually the thing being tested.
 
+## Burst
+
+The two live endpoints get a **Burst** tab: paste a few targets, say how many
+requests and at what rate, and the console fires them and reports what came
+back — status counts, throughput, p50/p95 latency, when the first 429 arrived
+and what `Retry-After` asked for. The target list cycles, so five slugs can
+answer twenty requests; different slugs matter, since repeating one can
+measure a cache rather than the work.
+
+Credits are only spent on requests the API answers about a record (200 or
+404). A 429 is free, so overshooting the limit is cheap — and the overshoot
+is the measurement. The estimate above the button is the worst case.
+
+The whole run downloads as JSON, one entry per request.
+
 ## Notes on the API as it behaves
 
 - `/open-refresh/status` is documented as returning `"pending"` or
@@ -163,6 +178,12 @@ own callback `type` (`ActivityComments`, `ActivityReactions`) and their own
   finished when `processed` reaches `total`, or when the status word is one of
   several known terminal values — the count is the signal that does not depend
   on guessing the vocabulary.
+- The live endpoints are documented as sharing **10 requests per 10 seconds
+  per team**. On staging, 12 concurrent live `company` requests all returned
+  200 with no 429 and **no `RateLimit-*` header on any response**, though the
+  API does list those headers in `access-control-expose-headers`. Latency
+  under that concurrency ranged from 3.2s to 14.5s. Treat the documented limit
+  as unverified on staging.
 - A finished activity queue has been observed reporting `1/1` processed while
   `/open-refresh/list` returns `{"items":[],"total":0}`, with or without
   `failed=true`. When that happens the console says so instead of showing a

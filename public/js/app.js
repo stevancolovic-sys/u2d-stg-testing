@@ -7,6 +7,7 @@ import { initialState, renderForm, refreshMarkers } from './ui/form.js'
 import { renderResponse, captureQueues, renderResolvedWebhooks } from './ui/response.js'
 import { mountQueues, addQueues } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
+import { renderBurst } from './ui/burst.js'
 
 const TOKEN_KEY = 'up2data.auth'
 const LAST_KEY = 'up2data.endpoint'
@@ -221,6 +222,18 @@ function selectEndpoint(id) {
   $('#endpoint-path').textContent = `${current.method} ${current.path}`
 
   renderForm($('#form'), current, state, onChange)
+
+  // Only the live endpoints answer in the same response and share one rate
+  // limit, so only they have anything to burst.
+  const burstTab = $('#tab-burst')
+  burstTab.hidden = !current.live
+  if (current.live) {
+    renderBurst($('#burst'), current, state, getToken)
+  } else if (burstTab.classList.contains('on')) {
+    // Leaving a live endpoint with the burst tab open would show a blank pane.
+    document.querySelector('.tab[data-panel="panel-response"]').click()
+  }
+
   renderPreview()
 }
 
