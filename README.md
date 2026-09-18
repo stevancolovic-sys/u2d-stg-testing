@@ -31,6 +31,41 @@ npx wrangler login   # opens a browser
 npm run deploy
 ```
 
+## Who can get in
+
+The console is behind Google sign-in and only a verified **@totema.co**
+address passes. Sessions last 12 hours in a cookie that is `HttpOnly`,
+`Secure`, `SameSite=Lax` and HMAC-signed, so editing its contents invalidates
+it.
+
+Three encrypted variables on the Worker turn it on:
+
+```
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+SESSION_SECRET        any long random string
+ALLOWED_DOMAIN        optional, defaults to totema.co
+```
+
+The OAuth client's authorised redirect URI must be exactly
+`https://<worker>/auth/callback`.
+
+Until all three are set the console is **closed**, not open: a gate nobody
+configured must not look like a gate that passed.
+
+**Webhook callbacks stay public, and must.** uptodata cannot sign in to
+Google; a redirect instead of a 200 would push every delivery into its retry
+schedule and then drop it after four attempts. So a `POST` outside `/auth` and
+`/links` is always accepted as a callback, while every `GET` a person makes —
+the page, `/links`, and reading callbacks back at `/hook/:id/events` — needs a
+session. A test locks that split in place, including that callbacks still
+arrive while sign-in is unconfigured.
+
+Checking is done on the claims, not on the redirect: `email_verified` must be
+true, the address must end in `@totema.co`, and where Google sends `hd` it
+must agree. An address merely ending in the domain name, such as
+`me@nottotema.co` or `me@totema.co.evil.com`, is refused.
+
 ## Using it
 
 The console is organised around what people want, not around the sixteen

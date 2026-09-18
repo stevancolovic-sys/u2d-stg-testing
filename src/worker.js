@@ -8,6 +8,12 @@
 // needs no resource created ahead of deploy, which keeps `wrangler deploy`
 // and a dashboard repo import equally one-step.
 
+import {
+  isAllowed, signSession, verifySession, parseCookies, cookie, clearCookie,
+  decodeIdToken, authUrl, randomToken,
+  SESSION_COOKIE, STATE_COOKIE, SESSION_SECONDS, GOOGLE_TOKEN,
+} from './auth.js'
+
 const RETENTION_MS = 24 * 60 * 60 * 1000
 const MAX_EVENTS = 200
 
@@ -176,6 +182,165 @@ export class LinkStore {
   }
 }
 
+const DEFAULT_DOMAIN = 'totema.co'
+
+const page = (title, body, status = 200) =>
+  new Response(
+    `<!doctype html><meta charset="utf-8"><title>${title}</title>
+<style>
+  :root { color-scheme: dark }
+  body { margin:0; min-height:100vh; display:grid; place-items:center;
+         background:#141820; color:#d6dce4;
+         font:400 15px/1.6 'IBM Plex Sans',system-ui,sans-serif }
+  .card { width:min(520px,90vw); padding:36px; border:1px solid #2e3847;
+          border-radius:6px; background:#1a212b }
+  h1 { margin:0 0 10px; font-size:21px; font-weight:500 }
+  p { margin:0 0 16px; color:#7e8a9a; font-size:14px }
+  code { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12.5px;
+         color:#c8964a; word-break:break-all }
+  a.btn { display:inline-block; padding:11px 22px; border-radius:4px;
+          background:#c8964a; color:#17120a; font-weight:600; text-decoration:none }
+  ol { color:#7e8a9a; font-size:13.5px; padding-left:20px }
+  li { margin-bottom:8px }
+</style>
+<div class="card">${body}</div>`,
+    { status, headers: { 'content-type': 'text/html; charset=utf-8' } }
+  )
+
+const authConfig = (env) => ({
+  clientId: env.GOOGLE_CLIENT_ID,
+  clientSecret: env.GOOGLE_CLIENT_SECRET,
+  secret: env.SESSION_SECRET,
+  domain: env.ALLOWED_DOMAIN || DEFAULT_DOMAIN,
+  ready: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET),
+})
+
+// Sign-in is refused until it is configured, rather than quietly letting
+// everyone in — a gate nobody set up must not look like a gate that passed.
+const setupPage = (url) =>
+  page(
+    'Sign-in not configured',
+    `<h1>Sign-in is not set up yet</h1>
+     <p>This console is closed until Google sign-in is configured. In the Worker's
+        settings add three encrypted variables:</p>
+     <ol>
+       <li><code>GOOGLE_CLIENT_ID</code></li>
+       <li><code>GOOGLE_CLIENT_SECRET</code></li>
+       <li><code>SESSION_SECRET</code> — any long random string</li>
+     </ol>
+     <p>The OAuth client's authorised redirect URI must be exactly:<br>
+        <code>${url.origin}/auth/callback</code></p>`,
+    503
+  )
+
+async function handleAuth(request, env, url, parts) {
+  const config = authConfig(env)
+  const redirectUri = `${url.origin}/auth/callback`
+
+  if (parts[1] === 'logout') {
+    return new Response(null, {
+      status: 302,
+      headers: { location: '/', 'set-cookie': clearCookie(SESSION_COOKIE) },
+    })
+  }
+
+  if (!config.ready) return setupPage(url)
+
+  if (parts[1] === 'login') {
+    const state = randomToken()
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: authUrl({ clientId: config.clientId, redirectUri, state, domain: config.domain }),
+        'set-cookie': cookie(STATE_COOKIE, state, { maxAge: 600 }),
+      },
+    })
+  }
+
+  if (parts[1] === 'callback') {
+    const code = url.searchParams.get('code')
+    const state = url.searchParams.get('state')
+    const expected = parseCookies(request.headers.get('cookie'))[STATE_COOKIE]
+
+    // Without this, a link could sign you in as somebody else's account.
+    if (!code || !state || !expected || state !== expected) {
+      return page('Sign-in failed', `<h1>Sign-in could not be completed</h1>
+        <p>The request did not match the one that started it. Start again.</p>
+        <p><a class="btn" href="/auth/login">Try again</a></p>`, 400)
+    }
+
+    const token = await fetch(GOOGLE_TOKEN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    })
+
+    const payload = await token.json().catch(() => null)
+    const claims = decodeIdToken(payload && payload.id_token)
+
+    if (!claims) {
+      return page('Sign-in failed', `<h1>Google did not return an identity</h1>
+        <p><a class="btn" href="/auth/login">Try again</a></p>`, 502)
+    }
+
+    if (!isAllowed(claims, config.domain)) {
+      return new Response(
+        `<!doctype html><meta charset="utf-8"><title>No access</title>
+<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#141820;color:#d6dce4;font:400 15px/1.6 'IBM Plex Sans',system-ui,sans-serif}.card{width:min(520px,90vw);padding:36px;border:1px solid #2e3847;border-radius:6px;background:#1a212b}h1{margin:0 0 10px;font-size:21px;font-weight:500}p{margin:0 0 16px;color:#7e8a9a;font-size:14px}a{color:#c8964a}</style>
+<div class="card"><h1>That account cannot use this console</h1>
+<p>Signed in as ${String(claims.email || 'an unknown account').replace(/[<>&]/g, '')}, which is not a verified @${config.domain} address.</p>
+<p><a href="/auth/login">Use a different account</a></p></div>`,
+        { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'set-cookie': clearCookie(STATE_COOKIE) } }
+      )
+    }
+
+    const session = await signSession(
+      { email: claims.email, exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS },
+      config.secret
+    )
+    const headers = new Headers({ location: '/' })
+    headers.append('set-cookie', cookie(SESSION_COOKIE, session))
+    headers.append('set-cookie', clearCookie(STATE_COOKIE))
+    return new Response(null, { status: 302, headers })
+  }
+
+  if (parts[1] === 'me') {
+    const session = await verifySession(
+      parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
+      config.secret
+    )
+    return json(session ? { email: session.email } : { email: null }, session ? 200 : 401)
+  }
+
+  return json({ error: 'Not found' }, 404)
+}
+
+// Returns a response when the caller may not pass, and null when they may.
+async function gate(request, env, url) {
+  const config = authConfig(env)
+  if (!config.ready) return setupPage(url)
+
+  const session = await verifySession(
+    parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
+    config.secret
+  )
+  if (session) return null
+
+  return page(
+    'Sign in',
+    `<h1>Up2Data console</h1>
+     <p>Internal tool. Sign in with your @${config.domain} Google account.</p>
+     <p><a class="btn" href="/auth/login">Sign in with Google</a></p>`,
+    401
+  )
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -200,7 +365,23 @@ export default {
       }
     }
 
-    // Before the catch-all below, which treats any other POST as a callback.
+    // --- public: webhook callbacks. uptodata cannot sign in to Google, and a
+    // redirect would push every delivery into its retry schedule and then drop
+    // it. Only POSTs are public — a browser GET is gated below.
+    if (parts[0] === 'hook' && parts[1] && request.method === 'POST' && !parts[2]) {
+      return store(parts[1])
+    }
+    if (request.method === 'POST' && parts[0] !== 'auth' && parts[0] !== 'links') {
+      return store(DEFAULT_HOOK)
+    }
+
+    // --- public: signing in
+    if (parts[0] === 'auth') return handleAuth(request, env, url, parts)
+
+    // --- everything past here needs a session
+    const refused = await gate(request, env, url)
+    if (refused) return refused
+
     if (parts[0] === 'links' && !parts[1]) {
       const stub = env.LINKS.get(env.LINKS.idFromName('links'))
       return stub.fetch(
@@ -217,14 +398,10 @@ export default {
       const stub = env.HOOKS.get(env.HOOKS.idFromName(id))
 
       if (parts[2] && parts[2] !== 'events') return json({ error: 'Not found' }, 404)
-      if (request.method === 'POST' && !parts[2]) return store(id)
 
       const inner = parts[2] === 'events' ? 'https://do/events' : 'https://do/'
       return stub.fetch(new Request(inner, { method: request.method }))
     }
-
-    // A webhook configured against the origin itself, or any other path.
-    if (request.method === 'POST') return store(DEFAULT_HOOK)
 
     if (env.ASSETS) return env.ASSETS.fetch(request)
     return json({ error: 'Not found' }, 404)
