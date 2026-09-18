@@ -75,7 +75,7 @@ export function renderBurst(container, endpoint, state, getToken) {
   rate.value = '20'
 
   const field = (label, control, hint, linkTypes) => {
-    const wrap = el('div', 'burst-field')
+    const wrap = el('div', 'burst-field' + (linkTypes ? ' wide' : ''))
     const head = el('div', 'field-head')
     head.append(el('label', 'key mono', label))
 

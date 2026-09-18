@@ -548,17 +548,45 @@ button.chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px
 /* ---- the picker a field opens ---- */
 
 .picker {
-  margin-top: 8px; padding: 12px;
-  border: 1px solid var(--line); border-radius: 3px;
-  background: var(--panel);
+  position: relative;
+  z-index: 20;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  background: var(--raised);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
 }
 .picker > .input { margin-bottom: 10px; }
-.picker-list { max-height: 240px; overflow-y: auto; margin-bottom: 10px; }
-.picker-row {
-  display: flex; gap: 10px; align-items: center;
-  padding: 6px 0; font-size: 12.5px; cursor: pointer;
+
+.picker-list {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  border-top: 1px solid var(--line);
 }
-.picker-row .mono { flex: 1 1 200px; word-break: break-all; font-size: 11.5px; }
+
+.picker-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.picker-row:hover { background: var(--panel); }
+.picker-row input[type='checkbox'] { flex: 0 0 auto; }
+
+.picker-name { flex: 0 1 auto; color: #fff; }
+.picker-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .bulk { margin: 18px 0 8px; }
 .bulk > summary { color: var(--muted); font-size: 13px; cursor: pointer; margin-bottom: 10px; }
@@ -571,3 +599,7 @@ button.chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px
 
 .delivery { display: flex; flex-wrap: wrap; gap: 22px; margin-bottom: 14px; }
 .delivery .stat-value { font-size: 18px; color: var(--teal); }
+
+/* A field that opens a picker needs the whole row, or the picker is squeezed. */
+.burst-field.wide { flex: 1 1 100%; }
+.field, .burst-field { position: relative; }

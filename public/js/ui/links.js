@@ -56,7 +56,12 @@ export const currentLinks = () => cache
 // --- the picker a form field opens ---------------------------------------
 
 export function openPicker(anchor, acceptedTypes, onInsert) {
-  const existing = anchor.parentElement.querySelector('.picker')
+  // The button sits in a flex row; a picker appended there becomes a flex
+  // child, gets squeezed into a narrow column and overlaps its neighbours.
+  // It belongs to the whole field.
+  const mount = anchor.closest('.field, .burst-field') || anchor.parentElement
+
+  const existing = mount.querySelector('.picker')
   if (existing) {
     existing.remove()
     return
@@ -103,7 +108,15 @@ export function openPicker(anchor, acceptedTypes, onInsert) {
         else chosen.delete(link.url)
         insert.textContent = `Insert ${chosen.size || ''}`.trim()
       })
-      row.append(box, el('span', null, link.label), el('span', 'mono muted', link.url))
+
+      row.append(box)
+      // For a URN the label is the URN, so showing both prints it twice.
+      if (link.label && link.label !== link.url) {
+        row.append(el('span', 'picker-name', link.label))
+        row.append(el('span', 'mono muted picker-url', link.url))
+      } else {
+        row.append(el('span', 'mono picker-url', link.url))
+      }
       list.append(row)
     }
   }
@@ -138,7 +151,7 @@ export function openPicker(anchor, acceptedTypes, onInsert) {
   actions.append(insert, close)
   picker.append(actions)
 
-  anchor.parentElement.append(picker)
+  mount.append(picker)
   draw()
   search.focus()
 }
