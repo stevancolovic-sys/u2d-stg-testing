@@ -2,6 +2,7 @@
 // can offer only the ones a given field accepts.
 
 import { TYPES, typeById, detectType, describe, normaliseLink, dedupeKey, filterLinks, splitPasted } from '../links.js'
+import { downloadJson } from '../download.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -96,6 +97,7 @@ export function openPicker(anchor, acceptedTypes, onInsert) {
       const box = el('input')
       box.type = 'checkbox'
       box.checked = chosen.has(link.url)
+      box.title = link.url
       box.addEventListener('change', () => {
         if (box.checked) chosen.add(link.url)
         else chosen.delete(link.url)
@@ -109,6 +111,23 @@ export function openPicker(anchor, acceptedTypes, onInsert) {
   search.addEventListener('input', draw)
 
   const actions = el('div', 'row-actions')
+
+  const all = el('button', 'btn-ghost', 'Select all')
+  all.addEventListener('click', () => {
+    const showing = filterLinks(cache, { query: search.value }).filter((l) =>
+      acceptedTypes.includes(l.type)
+    )
+    const everyOne = showing.every((l) => chosen.has(l.url))
+    for (const link of showing) {
+      if (everyOne) chosen.delete(link.url)
+      else chosen.add(link.url)
+    }
+    all.textContent = everyOne ? 'Select all' : 'Select none'
+    draw()
+    insert.textContent = `Insert ${chosen.size || ''}`.trim()
+  })
+  actions.append(all)
+
   const insert = el('button', 'btn-ghost', 'Insert')
   insert.addEventListener('click', () => {
     if (chosen.size) onInsert([...chosen])
@@ -289,6 +308,32 @@ export function mountLinks(container) {
     }
   }
 
+  const copyAll = el('button', 'btn-ghost', 'Copy all')
+  const saveAll = el('button', 'btn-ghost', 'Download JSON')
+  filters.append(copyAll, saveAll)
+
+  // Both act on what is on screen, so a type chip or a search narrows them —
+  // "copy all" after filtering to Profile copies the profiles, not the lot.
+  const showing = () => filterLinks(cache, { type: activeType, query: search.value })
+
+  copyAll.addEventListener('click', async () => {
+    const values = showing().map((l) => l.url)
+    if (!values.length) return
+    try {
+      await navigator.clipboard.writeText(values.join('\n'))
+      copyAll.textContent = `Copied ${values.length}`
+    } catch {
+      copyAll.textContent = 'Copy blocked'
+    }
+    setTimeout(() => (copyAll.textContent = `Copy all ${showing().length}`), 1600)
+  })
+
+  saveAll.addEventListener('click', () => {
+    const links = showing()
+    if (!links.length) return
+    downloadJson(links, ['saved-links', activeType || 'all'])
+  })
+
   const listNode = el('div', 'link-list')
   container.append(filters, chips, listNode)
 
@@ -296,7 +341,11 @@ export function mountLinks(container) {
     drawChips()
     listNode.textContent = ''
 
-    const matching = filterLinks(cache, { type: activeType, query: search.value })
+    const matching = showing()
+    // The count belongs on the button: it says what a click will take.
+    copyAll.textContent = `Copy all ${matching.length}`
+    copyAll.disabled = !matching.length
+    saveAll.disabled = !matching.length
     if (!matching.length) {
       listNode.append(
         el('p', 'hint', cache.length ? 'Nothing matches that.' : 'No links saved yet. Paste one above.')

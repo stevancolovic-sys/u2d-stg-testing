@@ -183,6 +183,13 @@ button offering only the kind it accepts, so a company URL can never land in a
 field expecting a profile. A bare slug carries nothing to detect, so saving
 one asks you to pick the type.
 
+**Copy all** puts every listed URL on the clipboard, one per line, and
+**Download JSON** saves the same set as a file. Both act on what is on screen,
+so picking a type chip or typing in the search narrows them — the button says
+the count so a click holds no surprises. In a field's picker, **Select all**
+ticks everything showing, which is how a whole list gets into a burst in one
+go.
+
 **Paste a list** takes a whole block at once, one per line or comma separated,
 and reports what it recognised before saving. Give the batch shared tags, or
 force a type when the values carry nothing to detect.
