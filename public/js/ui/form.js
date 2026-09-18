@@ -185,9 +185,18 @@ function renderControl(field, entry, onChange) {
 }
 
 export function renderForm(container, endpoint, state, onChange) {
+  renderFields(container, endpoint.fields, state, onChange)
+}
+
+// Draws any subset of fields. The job UI uses it twice: once for what a job
+// asks up front, once for everything under Options — which keeps the checkbox
+// rule (omitted is not false) in one place rather than two.
+export function renderFields(container, fields, state, onChange) {
   container.textContent = ''
 
-  for (const field of endpoint.fields) {
+  const redraw = () => renderFields(container, fields, state, onChange)
+
+  for (const field of fields) {
     const entry = state[field.name]
     const row = el('div', 'field')
     if (!field.required && !entry.enabled) row.classList.add('off')
@@ -221,15 +230,13 @@ export function renderForm(container, endpoint, state, onChange) {
           if (field.type === 'links') {
             const rows = entry.value.filter((r) => r.url)
             entry.value = [...rows, ...urls.map((u) => ({ url: u, limitEnabled: false, limit: '' }))]
-            renderForm(container, endpoint, state, onChange)
           } else if (field.type === 'lines') {
             const existing = String(entry.value || '').split('\n').map((s) => s.trim()).filter(Boolean)
             entry.value = [...new Set([...existing, ...urls])].join('\n')
-            renderForm(container, endpoint, state, onChange)
           } else {
             entry.value = urls[0]
-            renderForm(container, endpoint, state, onChange)
           }
+          redraw()
           onChange()
         })
       )

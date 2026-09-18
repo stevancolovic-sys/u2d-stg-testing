@@ -13,85 +13,58 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="brand-name">Up2Data console</span>
+    <span class="brand-name">Up2Data</span>
     <span class="brand-sub">internal</span>
   </div>
+
   <div class="env">
     <label for="base-url" class="env-label">API</label>
     <input id="base-url" class="input" type="text" spellcheck="false" autocomplete="off">
     <div id="base-presets" class="presets"></div>
   </div>
+
   <div class="auth">
     <input id="api-key" class="input" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
-    <button id="auth-btn" class="btn">Get token</button>
-    <button id="clear-auth" class="btn-ghost danger">Clear credentials</button>
-    <span id="auth-status" class="auth-status">No token.</span>
+    <button id="auth-btn" class="btn">Sign in</button>
+    <button id="clear-auth" class="btn-ghost danger">Sign out</button>
+    <span id="auth-status" class="auth-status">Not signed in.</span>
   </div>
 </header>
 
 <main class="layout">
-
-  <nav id="rail" class="rail" aria-label="Endpoints"></nav>
+  <nav id="rail" class="rail" aria-label="What to do"></nav>
 
   <section class="work">
-    <div class="work-head">
-      <h1 id="endpoint-label" class="mono"></h1>
-      <p id="endpoint-summary"></p>
-      <code id="endpoint-path" class="mono muted"></code>
-    </div>
+    <div id="job" class="job"></div>
 
-    <div id="form" class="form"></div>
-
-    <div class="dispatch">
-      <div id="meter" class="meter"></div>
-      <div class="dispatch-actions">
-        <button id="send" class="btn btn-send">Send request</button>
-        <button id="copy-curl" class="btn-ghost">Copy as curl</button>
-      </div>
-      <p id="send-note" class="hint"></p>
-    </div>
-  </section>
-
-  <section class="monitor">
-    <div class="tabs" role="tablist">
-      <button class="tab on" data-panel="panel-response" role="tab">Response</button>
-      <button id="tab-queues" class="tab" data-panel="panel-queues" role="tab">Queues</button>
-      <button class="tab" data-panel="panel-webhooks" role="tab">Callbacks</button>
-      <button class="tab" data-panel="panel-preview" role="tab">Request</button>
-      <button id="tab-burst" class="tab" data-panel="panel-burst" role="tab" hidden>Burst</button>
-      <button class="tab" data-panel="panel-links" role="tab">Saved links</button>
-    </div>
-
-    <div id="panel-response" class="panel">
-      <div id="resolved-webhooks" class="resolved"></div>
-      <div id="response">
-        <p class="hint">Responses appear here — status, timing, rate-limit headers and the body.</p>
-      </div>
-    </div>
-
-    <div id="panel-queues" class="panel" hidden>
+    <div id="panel-jobs" class="panel" hidden>
+      <h1>Jobs</h1>
+      <p class="lede">Everything you have sent, with its progress and its results.</p>
       <div id="queues"></div>
     </div>
 
-    <div id="panel-webhooks" class="panel" hidden>
+    <div id="panel-callbacks" class="panel" hidden>
+      <h1>Callbacks</h1>
+      <p class="lede">Results pushed here the moment they are ready, instead of you asking.</p>
       <div id="webhooks"></div>
     </div>
 
     <div id="panel-links" class="panel" hidden>
+      <h1>Saved links</h1>
+      <p class="lede">The people, companies and searches you keep coming back to.</p>
       <div id="links"></div>
     </div>
 
     <div id="panel-burst" class="panel" hidden>
+      <h1>Load test</h1>
+      <p class="lede">Send many at once and see how much arrives in time.</p>
+      <div class="burst-target-pick">
+        <span class="muted">Test against</span>
+        <div id="burst-kind" class="presets"></div>
+      </div>
       <div id="burst"></div>
     </div>
-
-    <div id="panel-preview" class="panel" hidden>
-      <div class="label">What gets sent</div>
-      <pre id="preview-head" class="json"></pre>
-      <pre id="preview-body" class="json"></pre>
-    </div>
   </section>
-
 </main>
 
 <script type="module" src="/js/app.js"></script>

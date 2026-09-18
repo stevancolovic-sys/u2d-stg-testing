@@ -1,21 +1,40 @@
-import { ENDPOINTS, VISIBLE, byId } from './endpoints.js'
+import { byId } from './endpoints.js'
+import { JOBS, jobById, modeOf, targetField, optionalFields } from './jobs.js'
 import { estimateCredits } from './credits.js'
-import { buildBody, toCurl } from './request.js'
+import { buildBody, toCurl, parseLines } from './request.js'
 import { callApi, resolveUrl } from './api.js'
+import { runPool } from './burst.js'
 import { PRESETS, getBase, setBase, presetFor } from './config.js'
-import { initialState, renderForm, refreshMarkers } from './ui/form.js'
-import { renderResponse, captureQueues, renderResolvedWebhooks } from './ui/response.js'
+import { initialState, renderFields } from './ui/form.js'
+import { renderResponse } from './ui/response.js'
+import { renderResults } from './ui/results.js'
+import { renderBurst } from './ui/burst.js'
 import { mountQueues, addQueues } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
-import { renderBurst } from './ui/burst.js'
 import { mountLinks } from './ui/links.js'
 
 const TOKEN_KEY = 'up2data.auth'
-const LAST_KEY = 'up2data.endpoint'
-const stateKey = (id) => `up2data.state.${id}`
+const WHERE_KEY = 'up2data.where'
+const stateKey = (jobId, modeId) => `up2data.job.${jobId}.${modeId}`
 const $ = (sel) => document.querySelector(sel)
 
-let current = null
+const el = (tag, className, text) => {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
+}
+
+const PANELS = [
+  { id: 'jobs', label: 'Jobs', node: 'panel-jobs' },
+  { id: 'callbacks', label: 'Callbacks', node: 'panel-callbacks' },
+  { id: 'links', label: 'Saved links', node: 'panel-links' },
+  { id: 'burst', label: 'Load test', node: 'panel-burst' },
+]
+
+let where = { kind: 'job', id: JOBS[0].id }
+let job = null
+let mode = null
 let state = {}
 
 // --- credentials ---------------------------------------------------------
@@ -30,35 +49,20 @@ const readAuth = () => {
 const writeAuth = (auth) => localStorage.setItem(TOKEN_KEY, JSON.stringify(auth))
 const getToken = () => readAuth()?.token || null
 
-function hoursLeft(auth) {
-  if (!auth?.issuedAt) return 0
-  const elapsed = Date.now() - new Date(auth.issuedAt).getTime()
-  return Math.max(0, 24 - elapsed / 3600000)
-}
-
 function renderAuth() {
   const auth = readAuth()
   const status = $('#auth-status')
   const keyInput = $('#api-key')
-
   if (auth?.apiKey && !keyInput.value) keyInput.value = auth.apiKey
 
   if (!auth?.token) {
-    status.textContent = 'No token. Authenticate to enable the other endpoints.'
+    status.textContent = 'Not signed in — paste an API key to start.'
     status.className = 'auth-status'
   } else {
-    const left = hoursLeft(auth)
-    if (left <= 0) {
-      status.textContent = 'Token expired. Authenticate again.'
-      status.className = 'auth-status expired'
-    } else {
-      const h = Math.floor(left)
-      const m = Math.floor((left - h) * 60)
-      status.textContent = `Token valid for ${h}h ${m}m`
-      status.className = 'auth-status live'
-    }
+    status.textContent = 'Signed in'
+    status.className = 'auth-status live'
   }
-  if (current) renderPreview()
+  if (where.kind === 'job') draw()
 }
 
 async function authenticate() {
@@ -66,65 +70,73 @@ async function authenticate() {
   if (!apiKey) return
   const btn = $('#auth-btn')
   btn.disabled = true
-  btn.textContent = 'Authenticating…'
+  btn.textContent = 'Signing in…'
 
-  const result = await callApi({
-    endpoint: byId('authenticate'),
-    state: { apiKey: { value: apiKey } },
-    token: null,
-  })
+  const result = await callApi({ endpoint: byId('authenticate'), state: { apiKey: { value: apiKey } }, token: null })
 
   btn.disabled = false
-  btn.textContent = 'Get token'
-  renderResponse($('#response'), result, 'authenticate')
+  btn.textContent = 'Sign in'
 
   if (result.body?.accessToken) {
     writeAuth({ apiKey, token: result.body.accessToken, issuedAt: new Date().toISOString() })
+    renderAuth()
+  } else {
+    const status = $('#auth-status')
+    status.textContent = result.transportError || `Could not sign in (${result.status})`
+    status.className = 'auth-status expired'
   }
-  renderAuth()
 }
 
-// --- endpoint rail -------------------------------------------------------
+// --- where you are -------------------------------------------------------
 
 function renderRail() {
   const rail = $('#rail')
   rail.textContent = ''
-  let group = null
 
-  for (const endpoint of VISIBLE) {
-    if (endpoint.group !== group) {
-      group = endpoint.group
-      const heading = document.createElement('div')
-      heading.className = 'rail-group'
-      heading.textContent = group
-      rail.append(heading)
-    }
-    const btn = document.createElement('button')
-    btn.className = 'rail-item'
-    btn.dataset.id = endpoint.id
-    if (current && endpoint.id === current.id) btn.classList.add('on')
-
-    const label = document.createElement('span')
-    label.className = 'mono'
-    label.textContent = endpoint.label
-    btn.append(label)
-
-    const method = document.createElement('span')
-    method.className = `verb ${endpoint.method.toLowerCase()}`
-    method.textContent = endpoint.method
-    btn.append(method)
-
-    btn.addEventListener('click', () => selectEndpoint(endpoint.id))
+  rail.append(el('div', 'rail-group', 'Enrich'))
+  for (const j of JOBS) {
+    const btn = el('button', 'rail-item')
+    btn.dataset.where = `job:${j.id}`
+    btn.append(el('span', 'rail-title', j.title))
+    btn.append(el('span', 'rail-blurb', j.blurb))
+    btn.addEventListener('click', () => go({ kind: 'job', id: j.id }))
     rail.append(btn)
+  }
+
+  rail.append(el('div', 'rail-group', 'Track'))
+  for (const p of PANELS) {
+    const btn = el('button', 'rail-item rail-plain')
+    btn.dataset.where = `panel:${p.id}`
+    btn.append(el('span', 'rail-title', p.label))
+    btn.addEventListener('click', () => go({ kind: 'panel', id: p.id }))
+    rail.append(btn)
+  }
+  markRail()
+}
+
+function markRail() {
+  for (const btn of document.querySelectorAll('.rail-item')) {
+    btn.classList.toggle('on', btn.dataset.where === `${where.kind}:${where.id}`)
   }
 }
 
-// --- form + preview ------------------------------------------------------
+function go(next) {
+  where = next
+  localStorage.setItem(WHERE_KEY, JSON.stringify(where))
+  markRail()
 
-function loadState(endpoint) {
+  $('#job').hidden = where.kind !== 'job'
+  for (const p of PANELS) $(`#${p.node}`).hidden = !(where.kind === 'panel' && where.id === p.id)
+
+  if (where.kind === 'job') selectJob(where.id)
+}
+
+// --- a job ---------------------------------------------------------------
+
+function loadState(endpoint, jobId, modeId) {
   const base = initialState(endpoint)
   try {
-    const saved = JSON.parse(localStorage.getItem(stateKey(endpoint.id)) || 'null')
+    const saved = JSON.parse(localStorage.getItem(stateKey(jobId, modeId)) || 'null')
     if (saved) {
       for (const name of Object.keys(base)) {
         if (saved[name]) base[name] = { ...base[name], ...saved[name] }
@@ -136,212 +148,270 @@ function loadState(endpoint) {
   return base
 }
 
-const saveState = () => localStorage.setItem(stateKey(current.id), JSON.stringify(state))
+const saveState = () => localStorage.setItem(stateKey(job.id, mode.id), JSON.stringify(state))
 
-// An endpoint may fan out: the activity picker turns one click into one
-// request per list it selected.
-function routeOf(endpoint, formState) {
-  const ids = endpoint.route ? endpoint.route(formState) : [endpoint.id]
-  return ids.map(byId).filter(Boolean)
+function selectJob(id, modeId) {
+  job = jobById(id) || JOBS[0]
+  mode = modeOf(job, modeId || localStorage.getItem(`up2data.mode.${job.id}`) || job.modes[0].id)
+  localStorage.setItem(`up2data.mode.${job.id}`, mode.id)
+  state = loadState(byId(mode.endpoint), job.id, mode.id)
+  draw()
 }
 
-function describeRequest(endpoint, formState, token) {
-  const lines = [`${endpoint.method} ${resolveUrl(endpoint, formState)}`]
-  if (endpoint.method !== 'GET') lines.push('Content-Type: application/json')
-  if (endpoint.auth) lines.push(`Authorization: ${token ? token.slice(0, 18) + '…' : '(no token)'}`)
-  const body = endpoint.method === 'GET' ? null : buildBody(endpoint.fields, formState)
-  lines.push('')
-  lines.push(body ? JSON.stringify(body, null, 2) : '(no body)')
-  return lines.join('\n')
+function endpointsFor() {
+  const endpoint = byId(mode.endpoint)
+  if (endpoint.route) return endpoint.route(state).map(byId).filter(Boolean)
+  return [endpoint]
 }
 
-function renderPreview() {
-  const token = getToken()
-  const route = routeOf(current, state)
+function targetCount() {
+  const endpoint = byId(mode.endpoint)
+  const field = targetField(endpoint)
+  if (!field) return 0
+  const entry = state[field.name]
+  if (field.type === 'links') return (entry?.value || []).filter((r) => r.url.trim()).length
+  if (field.type === 'lines') return parseLines(entry?.value).length
+  return String(entry?.value || '').trim() ? 1 : 0
+}
 
-  if (!route.length) {
-    $('#preview-head').textContent = 'Nothing selected — no request will be sent.'
-    $('#preview-body').textContent = ''
-  } else {
-    $('#preview-head').textContent =
-      route.length === 1 ? '1 request' : `${route.length} requests, sent in order`
-    $('#preview-body').textContent = route
-      .map((endpoint) => describeRequest(endpoint, state, token))
-      .join('\n\n' + '─'.repeat(40) + '\n\n')
+function draw() {
+  const root = $('#job')
+  root.textContent = ''
+  const endpoint = byId(mode.endpoint)
+
+  const heading = el('div', 'job-head')
+  heading.append(el('h1', null, job.title))
+  heading.append(el('code', 'mono job-path', `${endpoint.method} ${endpoint.path}`))
+  root.append(heading)
+  root.append(el('p', 'lede', job.blurb))
+
+  // --- step 1: which shape ---
+  if (job.modes.length > 1) {
+    const step = el('section', 'step')
+    step.append(el('div', 'step-head', 'How do you want it?'))
+    const choices = el('div', 'choices')
+    for (const m of job.modes) {
+      const choice = el('button', 'choice' + (m.id === mode.id ? ' on' : ''))
+      const head = el('span', 'choice-head')
+      head.append(el('span', 'choice-label', m.label))
+      // The endpoint it calls, so the label and the API are plainly the same
+      // thing to anyone who has read the docs.
+      head.append(el('span', 'choice-path mono', byId(m.endpoint).path))
+      choice.append(head)
+      choice.append(el('span', 'choice-blurb', m.blurb))
+      choice.addEventListener('click', () => selectJob(job.id, m.id))
+      choices.append(choice)
+    }
+    step.append(choices)
+    root.append(step)
   }
 
-  const estimate = estimateCredits(current, state)
-  const meter = $('#meter')
-  meter.textContent = ''
-  if (!estimate) {
-    meter.classList.add('free')
-    meter.append(Object.assign(document.createElement('span'), { className: 'meter-note', textContent: 'No credits' }))
-  } else {
-    meter.classList.remove('free')
-    meter.classList.toggle('reserved', Boolean(estimate.reserved))
-    const amount = document.createElement('span')
-    amount.className = 'meter-amount'
-    amount.textContent = estimate.amount.toLocaleString('en-US')
-    const unit = document.createElement('span')
-    unit.className = 'meter-unit'
-    unit.textContent = estimate.reserved ? 'credits reserved' : 'credits'
-    const note = document.createElement('span')
-    note.className = 'meter-note'
-    note.textContent = estimate.note
-    meter.append(amount, unit, note)
+  // --- step 2: who ---
+  const who = el('section', 'step')
+  who.append(el('div', 'step-head', job.question))
+  const fields = el('div', 'fields')
+  who.append(fields)
+  root.append(who)
+
+  const shown = [targetField(endpoint)].filter(Boolean)
+  const listsField = endpoint.fields.find((f) => f.type === 'lists')
+  if (mode.lists && listsField) shown.push(listsField)
+  renderFields(fields, shown, state, onChange)
+
+  // --- step 3: options ---
+  const optional = optionalFields(endpoint)
+  if (optional.length) {
+    const details = el('details', 'options')
+    const on = optional.filter((f) => state[f.name]?.enabled).length
+    details.append(el('summary', null, on ? `Options — ${on} set` : 'Options'))
+    const optionFields = el('div', 'fields')
+    details.append(optionFields)
+    renderFields(optionFields, optional, state, onChange)
+    root.append(details)
   }
 
-  const send = $('#send')
-  const noToken = current.auth && !token
-  const nothingPicked = route.length === 0
-  send.disabled = noToken || nothingPicked
-  send.textContent = route.length > 1 ? `Send ${route.length} requests` : 'Send request'
-  $('#send-note').textContent = noToken
-    ? 'Authenticate first — this endpoint needs a token.'
-    : nothingPicked
-      ? 'Pick at least one list.'
-      : ''
+  // --- send ---
+  const dispatch = el('section', 'dispatch')
+  const meter = el('div', 'meter')
+  dispatch.append(meter)
+
+  const actions = el('div', 'dispatch-actions')
+  const send = el('button', 'btn btn-send', 'Send')
+  const note = el('p', 'hint')
+  actions.append(send)
+
+  const curl = el('button', 'btn-ghost', 'Copy as curl')
+  curl.addEventListener('click', async () => {
+    const text = endpointsFor()
+      .map((e) =>
+        toCurl({
+          method: e.method,
+          url: resolveUrl(e, state),
+          token: e.auth ? getToken() : null,
+          body: e.method === 'GET' ? null : buildBody(e.fields, state),
+        })
+      )
+      .join('\n\n')
+    await navigator.clipboard.writeText(text)
+    curl.textContent = 'Copied'
+    setTimeout(() => (curl.textContent = 'Copy as curl'), 1200)
+  })
+  actions.append(curl)
+  dispatch.append(actions, note)
+  root.append(dispatch)
+
+  // --- the exact request, for when it matters ---
+  const detail = el('details', 'request-detail')
+  detail.append(el('summary', null, 'Show the exact request'))
+  const pre = el('pre', 'json')
+  detail.append(pre)
+  root.append(detail)
+
+  const out = el('section', 'outcome')
+  root.append(out)
+
+  function refresh() {
+    const route = endpointsFor()
+    const n = targetCount()
+    const estimate = estimateCredits(endpoint, state)
+
+    meter.textContent = ''
+    if (estimate && estimate.amount) {
+      meter.classList.toggle('reserved', Boolean(estimate.reserved))
+      meter.append(el('span', 'meter-amount', estimate.amount.toLocaleString('en-US')))
+      meter.append(el('span', 'meter-unit', estimate.reserved ? 'credits held' : 'credits'))
+      meter.append(el('span', 'meter-note', estimate.note))
+    } else {
+      meter.append(el('span', 'meter-note', n ? 'Nothing to spend.' : 'Add at least one above.'))
+    }
+
+    const blocked = !getToken() ? 'Sign in first.' : !n ? 'Nothing to send yet.' : !route.length ? 'Pick at least one list.' : ''
+    send.disabled = Boolean(blocked)
+    note.textContent = blocked
+    send.textContent = mode.oneAtATime && n > 1 ? `Send ${n}, one at a time` : 'Send'
+
+    pre.textContent = route
+      .map((e) => {
+        const body = e.method === 'GET' ? null : buildBody(e.fields, state)
+        return `${e.method} ${resolveUrl(e, state)}\n` + (body ? JSON.stringify(body, null, 2) : '(no body)')
+      })
+      .join('\n\n')
+  }
+
+  send.addEventListener('click', () => run(endpoint, out, send, refresh))
+  window.__refreshJob = refresh
+  refresh()
 }
 
 function onChange() {
   saveState()
-  refreshMarkers($('#form'), current, state)
-  renderPreview()
-}
-
-function selectEndpoint(id) {
-  current = byId(id)
-  state = loadState(current)
-  localStorage.setItem(LAST_KEY, id)
-
-  for (const btn of document.querySelectorAll('.rail-item')) {
-    btn.classList.toggle('on', btn.dataset.id === id)
-  }
-
-  $('#endpoint-label').textContent = current.label
-  $('#endpoint-summary').textContent = current.summary
-  $('#endpoint-path').textContent = `${current.method} ${current.path}`
-
-  renderForm($('#form'), current, state, onChange)
-
-  // Only the live endpoints answer in the same response and share one rate
-  // limit, so only they have anything to burst.
-  const burstTab = $('#tab-burst')
-  burstTab.hidden = !current.live
-  if (current.live) {
-    renderBurst($('#burst'), current, state, getToken)
-  } else if (burstTab.classList.contains('on')) {
-    // Leaving a live endpoint with the burst tab open would show a blank pane.
-    document.querySelector('.tab[data-panel="panel-response"]').click()
-  }
-
-  renderPreview()
+  if (window.__refreshJob) window.__refreshJob()
 }
 
 // --- sending -------------------------------------------------------------
 
-async function send() {
-  const estimate = estimateCredits(current, state)
-  const route = routeOf(current, state)
-  if (!route.length) return
+async function run(endpoint, out, send, refresh) {
+  const estimate = estimateCredits(endpoint, state)
 
-  // Only the search endpoints can reserve thousands from one click, and an
-  // unchecked limit is the way that happens by accident.
   if (estimate?.reserved && estimate.amount > 0) {
     const ok = confirm(
-      `This reserves up to ${estimate.amount.toLocaleString('en-US')} credits.\n\n` +
-        `${estimate.note}\n\nSend it?`
+      `This holds up to ${estimate.amount.toLocaleString('en-US')} credits.\n\n${estimate.note}\n\nGo ahead?`
     )
     if (!ok) return
   }
 
-  const btn = $('#send')
-  const label = btn.textContent
-  btn.disabled = true
+  send.disabled = true
+  out.textContent = ''
+  const progress = el('p', 'hint', 'Sending…')
+  out.append(progress)
 
-  const responses = $('#response')
-  responses.textContent = ''
-  $('#resolved-webhooks').textContent = ''
+  const token = getToken()
+  const field = targetField(endpoint)
 
-  const queueIds = []
-  let lastResult = null
+  // Live endpoints take one record each, so a list becomes a queue of calls —
+  // one at a time, because several at once inflates every reading.
+  if (mode.oneAtATime) {
+    const targets = parseLines(state[field.name]?.value)
+    const records = []
+    const failures = []
 
-  for (const [i, endpoint] of route.entries()) {
-    btn.textContent = route.length > 1 ? `Sending ${i + 1} of ${route.length}…` : 'Sending…'
-    const result = await callApi({ endpoint, state, token: getToken() })
-    lastResult = result
-
-    const block = document.createElement('div')
-    block.className = 'response-block'
-    if (route.length > 1) {
-      const head = document.createElement('div')
-      head.className = 'label mono'
-      head.textContent = `${endpoint.method} ${endpoint.path}`
-      block.append(head)
-    }
-    const body = document.createElement('div')
-    block.append(body)
-    responses.append(block)
-    renderResponse(body, result, endpoint.id)
-
-    if (result.body) {
-      renderResolvedWebhooks($('#resolved-webhooks'), result.body)
-      queueIds.push(...captureQueues(result.body))
-    }
-
-    if (endpoint.id === 'authenticate' && result.body?.accessToken) {
-      writeAuth({
-        apiKey: state.apiKey?.value || readAuth()?.apiKey || '',
-        token: result.body.accessToken,
-        issuedAt: new Date().toISOString(),
+    await runPool(targets, 1, async (target, i) => {
+      progress.textContent = `Sending ${i + 1} of ${targets.length}…`
+      const result = await callApi({
+        endpoint,
+        state: { ...state, [field.name]: { value: target } },
+        token,
       })
-      renderAuth()
+      if (result.ok && result.body) records.push(result.body)
+      else failures.push({ target, result })
+    })
+
+    out.textContent = ''
+    if (records.length) renderResults(out, records, [job.id, mode.id])
+    if (failures.length) {
+      out.append(el('div', 'label', `${failures.length} did not come back`))
+      for (const f of failures) {
+        const row = el('div', 'failure')
+        row.append(el('span', 'mono', f.target))
+        row.append(
+          el('span', 'failure-why', f.result.transportError || f.result.body?.message || `status ${f.result.status}`)
+        )
+        out.append(row)
+      }
+    }
+    send.disabled = false
+    refresh()
+    return
+  }
+
+  // Everything else enqueues and is watched on the Jobs panel.
+  const queueIds = []
+  let last = null
+
+  for (const e of endpointsFor()) {
+    const result = await callApi({ endpoint: e, state, token })
+    last = result
+    if (result.body) {
+      queueIds.push(...(result.body.queueId ? [result.body.queueId] : []))
+      queueIds.push(...(Array.isArray(result.body.queueIds) ? result.body.queueIds : []))
     }
   }
 
-  btn.disabled = false
-  btn.textContent = label
+  out.textContent = ''
+  send.disabled = false
+  refresh()
 
   if (queueIds.length) {
-    addQueues(queueIds, { endpointId: current.id, name: state.name?.value || '' })
-    $('#tab-queues').click()
-  }
-
-  // A 429 on a live endpoint says exactly how long to wait.
-  const retry = Number(lastResult?.headers?.['retry-after'])
-  if (lastResult?.status === 429 && retry > 0) {
-    btn.disabled = true
-    let left = retry
-    $('#send-note').textContent = `Rate limited — retry in ${left}s`
-    const countdown = setInterval(() => {
-      left -= 1
-      if (left <= 0) {
-        clearInterval(countdown)
-        btn.disabled = false
-        $('#send-note').textContent = ''
-      } else {
-        $('#send-note').textContent = `Rate limited — retry in ${left}s`
-      }
-    }, 1000)
+    addQueues(queueIds, { endpointId: endpoint.id, name: state.name?.value || job.title })
+    const hooks = last?.body?.webhooks
+    const line = el('p', 'sent-ok')
+    line.textContent =
+      `Sent. ${queueIds.length === 1 ? 'One job' : `${queueIds.length} jobs`} running — ` +
+      (hooks && hooks.length
+        ? `results will also be pushed to ${hooks.map((h) => h.name).join(', ')}.`
+        : 'watch it under Jobs.')
+    out.append(line)
+    const open = el('button', 'btn-ghost', 'Open Jobs')
+    open.addEventListener('click', () => go({ kind: 'panel', id: 'jobs' }))
+    out.append(open)
+  } else {
+    renderResponse(out, last, job.id)
   }
 }
 
-// --- which API ------------------------------------------------------------
+// --- which API -----------------------------------------------------------
 
 function renderPresets() {
   const wrap = $('#base-presets')
   wrap.textContent = ''
   const active = presetFor(getBase())
   for (const preset of PRESETS) {
-    const btn = document.createElement('button')
-    btn.className = 'preset'
+    const btn = el('button', 'preset' + (active && active.id === preset.id ? ' on' : ''), preset.label)
     btn.type = 'button'
-    btn.textContent = preset.label
-    if (active && active.id === preset.id) btn.classList.add('on')
     btn.addEventListener('click', () => {
       $('#base-url').value = setBase(preset.url)
       renderPresets()
-      renderPreview()
+      if (where.kind === 'job') draw()
     })
     wrap.append(btn)
   }
@@ -353,47 +423,52 @@ function setupBaseUrl() {
   input.addEventListener('input', () => {
     setBase(input.value)
     renderPresets()
-    renderPreview()
-  })
-  // A token is issued by one environment and meaningless to the other.
-  input.addEventListener('change', () => {
-    input.value = getBase()
-    renderPresets()
+    if (where.kind === 'job') draw()
   })
   renderPresets()
 }
 
-// --- tabs ----------------------------------------------------------------
+// --- load test -----------------------------------------------------------
 
-function setupTabs() {
-  for (const tab of document.querySelectorAll('.tab')) {
-    tab.addEventListener('click', () => {
-      for (const other of document.querySelectorAll('.tab')) other.classList.remove('on')
-      for (const panel of document.querySelectorAll('.panel')) panel.hidden = true
-      tab.classList.add('on')
-      document.querySelector(`#${tab.dataset.panel}`).hidden = false
-    })
+function setupBurst() {
+  const wrap = $('#burst-kind')
+  let kind = 'profile'
+  const draw = () => {
+    wrap.textContent = ''
+    for (const [id, label] of [['profile', 'People'], ['company', 'Companies']]) {
+      const btn = el('button', 'preset' + (id === kind ? ' on' : ''), label)
+      btn.type = 'button'
+      btn.addEventListener('click', () => {
+        kind = id
+        draw()
+      })
+      wrap.append(btn)
+    }
+    const endpoint = byId(kind)
+    renderBurst($('#burst'), endpoint, initialState(endpoint), getToken)
   }
+  draw()
 }
 
 // --- boot ----------------------------------------------------------------
 
 renderRail()
-setupTabs()
 setupBaseUrl()
-// The reference page links here as ?endpoint=<id>; a hidden id resolves too,
-// so a link to /posts lands on the activity picker that covers it.
-const asked = new URLSearchParams(location.search).get('endpoint')
-const askedEndpoint = asked && byId(asked)
-selectEndpoint(
-  askedEndpoint ? (askedEndpoint.hidden ? 'activity' : askedEndpoint.id) : localStorage.getItem(LAST_KEY) || 'authenticate'
-)
-renderAuth()
-setInterval(renderAuth, 60000)
-
+setupBurst()
 mountQueues($('#queues'), { getToken })
 mountWebhooks($('#webhooks'))
 mountLinks($('#links'))
+
+try {
+  const saved = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null')
+  if (saved && (saved.kind === 'job' ? jobById(saved.id) : PANELS.some((p) => p.id === saved.id))) {
+    where = saved
+  }
+} catch {
+  /* start at the first job */
+}
+go(where)
+renderAuth()
 
 $('#auth-btn').addEventListener('click', authenticate)
 $('#api-key').addEventListener('keydown', (e) => {
@@ -403,21 +478,4 @@ $('#clear-auth').addEventListener('click', () => {
   localStorage.removeItem(TOKEN_KEY)
   $('#api-key').value = ''
   renderAuth()
-})
-$('#send').addEventListener('click', send)
-$('#copy-curl').addEventListener('click', async () => {
-  const cmd = routeOf(current, state)
-    .map((endpoint) =>
-      toCurl({
-        method: endpoint.method,
-        url: resolveUrl(endpoint, state),
-        token: endpoint.auth ? getToken() : null,
-        body: endpoint.method === 'GET' ? null : buildBody(endpoint.fields, state),
-      })
-    )
-    .join('\n\n')
-  await navigator.clipboard.writeText(cmd)
-  const btn = $('#copy-curl')
-  btn.textContent = 'Copied'
-  setTimeout(() => (btn.textContent = 'Copy as curl'), 1200)
 })

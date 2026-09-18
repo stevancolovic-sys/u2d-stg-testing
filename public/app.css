@@ -80,7 +80,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   min-height: calc(100vh - 60px);
 }
 
@@ -99,19 +99,23 @@ body {
 
 .rail-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 3px;
   width: 100%;
-  padding: 7px 16px;
+  padding: 11px 18px;
   border: 0;
   border-left: 2px solid transparent;
   background: none;
   color: var(--text);
-  font: 400 13px/1.4 var(--mono);
+  font: 400 14px/1.4 var(--sans);
   text-align: left;
   cursor: pointer;
 }
+
+.rail-title { font-weight: 500; }
+.rail-blurb { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.rail-plain { padding: 8px 18px; }
+.rail-item.on .rail-blurb { color: #9aa6b6; }
 
 .rail-item:hover { background: var(--raised); }
 .rail-item.on {
@@ -123,11 +127,7 @@ body {
 .verb { font-size: 10.5px; color: var(--muted); }
 .verb.get { color: var(--teal); }
 
-.work {
-  padding: 24px 28px 60px;
-  border-right: 1px solid var(--line);
-  min-width: 0;
-}
+.work { padding: 36px 40px 100px; min-width: 0; max-width: 1080px; }
 
 .work-head h1 {
   margin: 0 0 6px;
@@ -403,7 +403,7 @@ select.input { font-family: var(--sans); }
 
 /* ---- narrow ---- */
 
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
   .layout { grid-template-columns: 1fr; }
   .rail {
     display: flex;
@@ -416,7 +416,8 @@ select.input { font-family: var(--sans); }
   .rail-group { width: 100%; padding: 8px 6px 2px; }
   .rail-item { width: auto; border-left: 0; border-bottom: 2px solid transparent; border-radius: 3px; }
   .rail-item.on { border-left-color: transparent; border-bottom-color: var(--brass); }
-  .work { border-right: 0; border-bottom: 1px solid var(--line); padding: 20px 16px 40px; }
+  .work { padding: 22px 16px 60px; }
+  .rail-item { padding: 10px 14px; }
   .panel { padding: 16px; }
   .auth .input { width: 100%; }
 }
@@ -603,3 +604,108 @@ button.chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px
 /* A field that opens a picker needs the whole row, or the picker is squeezed. */
 .burst-field.wide { flex: 1 1 100%; }
 .field, .burst-field { position: relative; }
+
+/* ---- the job flow ---- */
+
+.job h1, .panel h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.lede { margin: 0 0 30px; color: var(--muted); font-size: 15px; max-width: 64ch; }
+
+.step { margin-bottom: 30px; }
+
+.step-head {
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.choices { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.choice {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.choice:hover { border-color: var(--muted); }
+.choice.on { border-color: var(--brass); background: var(--raised); }
+.choice:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.choice-label { font-weight: 500; font-size: 14px; }
+.choice.on .choice-label { color: var(--brass); }
+.choice-blurb { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+
+/* Inside a step the field chrome is quieter — the question is the heading. */
+.fields .field:first-child { padding-top: 0; border-top: 0; }
+
+.options {
+  margin-bottom: 30px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+.options > summary { color: var(--muted); font-size: 13.5px; cursor: pointer; }
+.options[open] > summary { margin-bottom: 8px; color: var(--text); }
+.options > summary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.request-detail { margin: 26px 0; }
+.request-detail > summary { color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.request-detail > summary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.dispatch { margin-top: 0; padding-top: 24px; border-top: 1px solid var(--line); }
+
+.outcome:not(:empty) { margin-top: 26px; }
+.sent-ok { margin: 0 0 10px; color: var(--teal); font-size: 14px; }
+
+/* ---- results table ---- */
+
+.table-wrap {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 520px;
+}
+
+table.results { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.results th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--muted);
+  font: 400 11.5px var(--mono);
+  text-align: left;
+  white-space: nowrap;
+}
+table.results td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.results tr:hover td { background: var(--panel); }
+
+.burst-target-pick { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+
+.job-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.job-path { color: var(--muted); font-size: 12.5px; }
+
+.choice-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.choice-path { color: var(--muted); font-size: 11px; }
