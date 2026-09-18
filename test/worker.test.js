@@ -234,6 +234,29 @@ describe('signing in', () => {
     expect((await anon('GET', '/auth/callback?code=abc')).status).toBe(400)
   })
 
+  it('answers the callback at a bare /callback too, for clients registered that way', async () => {
+    const res = await send('GET', '/callback?code=abc&state=forged', undefined, {
+      cookie: 'u2d_state=the-real-one',
+    })
+    // Reached the auth handler and was refused on state, rather than being
+    // gated or swallowed as a webhook.
+    expect(res.status).toBe(400)
+  })
+
+  it('quotes the redirect path the client was registered with', async () => {
+    const res = await send('GET', '/auth/login', undefined, {
+      environment: { ...configured, OAUTH_REDIRECT_PATH: '/callback' },
+    })
+    const uri = new URL(res.headers.get('location')).searchParams.get('redirect_uri')
+    expect(uri).toBe('https://x/callback')
+  })
+
+  it('uses /auth/callback when nothing says otherwise', async () => {
+    const res = await anon('GET', '/auth/login')
+    const uri = new URL(res.headers.get('location')).searchParams.get('redirect_uri')
+    expect(uri).toBe('https://x/auth/callback')
+  })
+
   it('says who is signed in, and does not to a stranger', async () => {
     const mine = await (await call('GET', '/auth/me')).json()
     expect(mine.email).toBe('stevan@totema.co')

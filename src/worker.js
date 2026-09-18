@@ -184,6 +184,13 @@ export class LinkStore {
 
 const DEFAULT_DOMAIN = 'totema.co'
 
+// Google matches the redirect URI character for character against what the
+// OAuth client lists, so the path has to be whatever was registered there.
+// /auth/callback is the tidy one; OAUTH_REDIRECT_PATH covers a client that
+// lists something else without needing a code change.
+const DEFAULT_REDIRECT_PATH = '/auth/callback'
+const CALLBACK_PATHS = ['/auth/callback', '/callback']
+
 const page = (title, body, status = 200) =>
   new Response(
     `<!doctype html><meta charset="utf-8"><title>${title}</title>
@@ -223,11 +230,17 @@ const authConfig = (env) => {
     GOOGLE_CLIENT_SECRET: settingState(env.GOOGLE_CLIENT_SECRET),
     SESSION_SECRET: settingState(env.SESSION_SECRET),
   }
+  const path =
+    typeof env.OAUTH_REDIRECT_PATH === 'string' && env.OAUTH_REDIRECT_PATH.trim()
+      ? env.OAUTH_REDIRECT_PATH.trim()
+      : DEFAULT_REDIRECT_PATH
+
   return {
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
     secret: env.SESSION_SECRET,
     domain: env.ALLOWED_DOMAIN || DEFAULT_DOMAIN,
+    redirectPath: path.startsWith('/') ? path : `/${path}`,
     checks,
     ready: Object.values(checks).every((state) => state === 'ok'),
   }
@@ -236,7 +249,7 @@ const authConfig = (env) => {
 // Sign-in is refused until it is configured, rather than quietly letting
 // everyone in — a gate nobody set up must not look like a gate that passed.
 // Says which setting is wrong and how, never what it holds.
-const setupPage = (url, checks = {}) =>
+const setupPage = (url, checks = {}, redirectPath = DEFAULT_REDIRECT_PATH) =>
   page(
     'Sign-in not configured',
     `<h1>Sign-in is not set up yet</h1>
@@ -254,13 +267,17 @@ const setupPage = (url, checks = {}) =>
         one of them will not work — take <code>client_id</code> and
         <code>client_secret</code> out of it.</p>
      <p>The OAuth client's authorised redirect URI must be exactly:<br>
-        <code>${url.origin}/auth/callback</code></p>`,
+        <code>${url.origin}${redirectPath}</code><br>
+        If the client lists a different path, set <code>OAUTH_REDIRECT_PATH</code>
+        to match it instead of editing the client.</p>`,
     503
   )
 
 async function handleAuth(request, env, url, parts) {
   const config = authConfig(env)
-  const redirectUri = `${url.origin}/auth/callback`
+  const redirectUri = `${url.origin}${config.redirectPath}`
+  // The exchange must quote the same URI the sign-in was started with.
+  const isCallback = CALLBACK_PATHS.includes(url.pathname)
 
   if (parts[1] === 'logout') {
     return new Response(null, {
@@ -269,7 +286,7 @@ async function handleAuth(request, env, url, parts) {
     })
   }
 
-  if (!config.ready) return setupPage(url, config.checks)
+  if (!config.ready) return setupPage(url, config.checks, config.redirectPath)
 
   if (parts[1] === 'login') {
     const state = randomToken()
@@ -282,7 +299,7 @@ async function handleAuth(request, env, url, parts) {
     })
   }
 
-  if (parts[1] === 'callback') {
+  if (isCallback) {
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
     const expected = parseCookies(request.headers.get('cookie'))[STATE_COOKIE]
@@ -349,7 +366,7 @@ async function handleAuth(request, env, url, parts) {
 // Returns a response when the caller may not pass, and null when they may.
 async function gate(request, env, url) {
   const config = authConfig(env)
-  if (!config.ready) return setupPage(url, config.checks)
+  if (!config.ready) return setupPage(url, config.checks, config.redirectPath)
 
   const session = await verifySession(
     parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
@@ -400,8 +417,11 @@ export default {
       return store(DEFAULT_HOOK)
     }
 
-    // --- public: signing in
-    if (parts[0] === 'auth') return handleAuth(request, env, url, parts)
+    // --- public: signing in. The callback may also arrive at a bare /callback,
+    // because that is what some OAuth clients were registered with.
+    if (parts[0] === 'auth' || CALLBACK_PATHS.includes(url.pathname)) {
+      return handleAuth(request, env, url, parts)
+    }
 
     // --- everything past here needs a session
     const refused = await gate(request, env, url)
