@@ -568,3 +568,6 @@ button.chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px
 .pacing { display: flex; gap: 8px; align-items: center; }
 .pacing .input-num { width: 80px; }
 .pacing select.input { flex: 1 1 120px; min-width: 0; }
+
+.delivery { display: flex; flex-wrap: wrap; gap: 22px; margin-bottom: 14px; }
+.delivery .stat-value { font-size: 18px; color: var(--teal); }

@@ -235,6 +235,18 @@ requests and at what rate, and the console fires them and reports:
   once inflates each one. Measured against staging, a live `company` call
   averaged 3.1s one at a time and 8.7s at twelve concurrent.
 
+**Give up after** N seconds abandons a request the way a client with a timeout
+does, and the summary answers the question that setting exists to ask: **what
+a client would have received** at 5, 10, 15, 20, 30 and 60 seconds, counted
+from the measured times, so one run reads the whole curve.
+
+Abandoning a request does not stop the API working on it and does not refund
+the credit — it only stops you listening, so a timed-out request is counted as
+billed. Thresholds above your own timeout are reported as floors: a request
+you abandoned might have landed under a longer one, and there is no way to
+know after leaving. Run with `0` (wait forever) to read every threshold
+exactly.
+
 The target list cycles, so five slugs can answer twenty requests; different
 slugs matter, since repeating one can measure a cache rather than the work.
 

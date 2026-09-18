@@ -10,10 +10,17 @@ export function resolveUrl(endpoint, state) {
   return url
 }
 
-export async function callApi({ endpoint, state, token }) {
+export async function callApi({ endpoint, state, token, timeoutMs }) {
   const started = performance.now()
   const url = resolveUrl(endpoint, state)
   const init = { method: endpoint.method, headers: {} }
+
+  // Giving up on the answer does not stop the API working on it, and does not
+  // refund the credits — the request is simply no longer being listened to.
+  // That is exactly what a client with a 15 second timeout does.
+  const controller = timeoutMs > 0 ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
+  if (controller) init.signal = controller.signal
 
   if (endpoint.method !== 'GET') {
     init.headers['Content-Type'] = 'application/json'
@@ -52,10 +59,19 @@ export async function callApi({ endpoint, state, token }) {
       bytes: raw.length,
     }
   } catch (err) {
+    if (controller && controller.signal.aborted) {
+      return {
+        timedOut: true,
+        timeoutMs,
+        elapsedMs: Math.round(performance.now() - started),
+      }
+    }
     // A rejected fetch is a transport or CORS failure, not an HTTP status.
     return {
       transportError: String(err && err.message ? err.message : err),
       elapsedMs: Math.round(performance.now() - started),
     }
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }

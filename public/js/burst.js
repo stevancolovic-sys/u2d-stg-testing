@@ -70,8 +70,39 @@ export const REASONS = {
 }
 
 export const reasonFor = (result) => {
+  if (result.timedOut) {
+    const seconds = Math.round((result.timeoutMs || 0) / 1000)
+    return `gave up after ${seconds}s — still charged, the API kept working`
+  }
   if (result.transportError) return 'never reached the API — network or CORS'
   return REASONS[result.status] || `unexpected status ${result.status}`
+}
+
+// What a client with a given patience would have received. Counted from the
+// measured times, so one run answers for several thresholds at once.
+export const DELIVERY_THRESHOLDS = [5, 10, 15, 20, 30, 60]
+
+export function deliveredBy(results, thresholds = DELIVERY_THRESHOLDS) {
+  const done = results.filter((r) => r.finishedAt !== undefined)
+
+  return thresholds.map((seconds) => {
+    const cutoff = seconds * 1000
+    const delivered = done.filter(
+      (r) => r.status === 200 && r.finishedAt - r.startedAt <= cutoff
+    ).length
+
+    // A request abandoned before this threshold might have landed under it —
+    // we stopped listening, so the figure is a floor, not an answer.
+    const unknowable = done.filter((r) => r.timedOut && (r.timeoutMs || 0) <= cutoff).length
+
+    return {
+      seconds,
+      delivered,
+      total: done.length,
+      atLeast: unknowable > 0,
+      unknowable,
+    }
+  })
 }
 
 export function summarise(results, perRequestCost, requested) {
@@ -79,11 +110,13 @@ export function summarise(results, perRequestCost, requested) {
 
   const byStatus = {}
   for (const r of done) {
-    const key = r.transportError ? 'transport error' : String(r.status)
+    const key = r.timedOut ? 'timed out' : r.transportError ? 'transport error' : String(r.status)
     byStatus[key] = (byStatus[key] || 0) + 1
   }
 
-  const billed = done.filter((r) => BILLED_STATUSES.includes(r.status)).length
+  const billed = done.filter(
+    (r) => BILLED_STATUSES.includes(r.status) || r.timedOut
+  ).length
   const durations = done.map((r) => r.finishedAt - r.startedAt)
 
   const first = done.length ? Math.min(...done.map((r) => r.startedAt)) : 0
@@ -109,8 +142,12 @@ export function summarise(results, perRequestCost, requested) {
   const grouped = new Map()
   for (const r of notSucceeded) {
     const reason = reasonFor(r)
-    const key = r.transportError ? 'transport' : String(r.status)
-    const entry = grouped.get(key) || { status: r.transportError ? null : r.status, reason, count: 0 }
+    const key = r.timedOut ? 'timeout' : r.transportError ? 'transport' : String(r.status)
+    const entry = grouped.get(key) || {
+      status: r.timedOut || r.transportError ? null : r.status,
+      reason,
+      count: 0,
+    }
     entry.count += 1
     grouped.set(key, entry)
   }
@@ -147,6 +184,7 @@ export function summarise(results, perRequestCost, requested) {
     p50: percentile(durations, 50),
     p95: percentile(durations, 95),
     rateLimited: limited.length,
+    timedOut: done.filter((r) => r.timedOut).length,
     sawRateLimitHeaders,
     firstRateLimitAfterMs: limited.length ? limited[0].startedAt - first : null,
     retryAfterSeconds: retryAfter.length ? Math.max(...retryAfter) : null,

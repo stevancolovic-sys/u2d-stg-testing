@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickProfile, scheduleDelays, percentile, summarise, reasonFor, runPool } from '../public/js/burst.js'
+import { pickProfile, scheduleDelays, percentile, summarise, reasonFor, runPool, deliveredBy } from '../public/js/burst.js'
 
 describe('pickProfile', () => {
   it('cycles the list so a short list answers a long run', () => {
@@ -247,6 +247,84 @@ describe('summarise', () => {
     expect(s.credits).toBe(0)
     expect(s.firstRateLimitAfterMs).toBe(null)
     expect(s.retryAfterSeconds).toBe(null)
+  })
+})
+
+describe('timeouts', () => {
+  // Four answered at 2s, 8s, 14s and 19s; one was abandoned at 15s.
+  const run = [
+    { seq: 0, status: 200, startedAt: 0, finishedAt: 2000, headers: {} },
+    { seq: 1, status: 200, startedAt: 0, finishedAt: 8000, headers: {} },
+    { seq: 2, status: 200, startedAt: 0, finishedAt: 14000, headers: {} },
+    { seq: 3, status: 200, startedAt: 0, finishedAt: 19000, headers: {} },
+    { seq: 4, timedOut: true, timeoutMs: 15000, startedAt: 0, finishedAt: 15000, headers: {} },
+  ]
+
+  it('counts a timed-out request as not succeeding', () => {
+    const s = summarise(run, 2, 5)
+    expect(s.succeeded).toBe(4)
+    expect(s.failed).toBe(1)
+    expect(s.timedOut).toBe(1)
+    expect(s.byStatus['timed out']).toBe(1)
+  })
+
+  it('still bills it — leaving does not stop the API or refund', () => {
+    const s = summarise(run, 2, 5)
+    expect(s.billed).toBe(5)
+    expect(s.credits).toBe(10)
+  })
+
+  it('says why, and how long it waited', () => {
+    const s = summarise(run, 2, 5)
+    const timeout = s.failures.find((f) => f.reason.includes('gave up'))
+    expect(timeout.count).toBe(1)
+    expect(timeout.reason).toContain('15s')
+    expect(timeout.reason).toContain('still charged')
+  })
+
+  it('reasonFor names the timeout in seconds', () => {
+    expect(reasonFor({ timedOut: true, timeoutMs: 20000 })).toContain('gave up after 20s')
+  })
+})
+
+describe('deliveredBy', () => {
+  const run = [
+    { seq: 0, status: 200, startedAt: 0, finishedAt: 2000 },
+    { seq: 1, status: 200, startedAt: 0, finishedAt: 8000 },
+    { seq: 2, status: 200, startedAt: 0, finishedAt: 14000 },
+    { seq: 3, status: 200, startedAt: 0, finishedAt: 19000 },
+    { seq: 4, status: 429, startedAt: 0, finishedAt: 500 },
+  ]
+
+  it('answers what a client of each patience would have got', () => {
+    const rows = deliveredBy(run, [5, 10, 15, 20])
+    expect(rows.map((r) => r.delivered)).toEqual([1, 2, 3, 4])
+    expect(rows.every((r) => r.total === 5)).toBe(true)
+  })
+
+  it('does not count a non-200 as delivered, however fast it was', () => {
+    expect(deliveredBy(run, [1])[0].delivered).toBe(0)
+  })
+
+  it('marks a threshold as a floor when something was abandoned below it', () => {
+    const withTimeout = [
+      ...run,
+      { seq: 5, timedOut: true, timeoutMs: 15000, startedAt: 0, finishedAt: 15000 },
+    ]
+    const rows = deliveredBy(withTimeout, [10, 15, 20])
+    expect(rows.find((r) => r.seconds === 10).atLeast).toBe(false)
+    expect(rows.find((r) => r.seconds === 20).atLeast).toBe(true)
+    expect(rows.find((r) => r.seconds === 20).unknowable).toBe(1)
+  })
+
+  it('ignores requests still in flight', () => {
+    expect(deliveredBy([{ seq: 0, status: 200, startedAt: 0 }], [10])[0].total).toBe(0)
+  })
+
+  it('handles an empty run', () => {
+    expect(deliveredBy([], [15])).toEqual([
+      { seconds: 15, delivered: 0, total: 0, atLeast: false, unknowable: 0 },
+    ])
   })
 })
 

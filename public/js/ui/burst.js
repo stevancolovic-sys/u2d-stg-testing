@@ -6,7 +6,7 @@
 import { callApi } from '../api.js'
 import { estimateCredits } from '../credits.js'
 import { downloadJson } from '../download.js'
-import { pickProfile, scheduleDelays, summarise, runPool } from '../burst.js'
+import { pickProfile, scheduleDelays, summarise, runPool, deliveredBy } from '../burst.js'
 import { openPicker } from './links.js'
 
 const el = (tag, className, text) => {
@@ -98,6 +98,11 @@ export function renderBurst(container, endpoint, state, getToken) {
     return wrap
   }
 
+  const timeout = el('input', 'input input-num')
+  timeout.type = 'number'
+  timeout.min = '0'
+  timeout.value = '0'
+
   const pacing = el('div', 'pacing')
   pacing.append(rate, mode)
 
@@ -127,7 +132,12 @@ export function renderBurst(container, endpoint, state, getToken) {
       endpoint.id === 'company' ? ['company'] : ['profile']
     ),
     field('requests', count, 'How many to send in total.'),
-    field('pacing', pacing, null)
+    field('pacing', pacing, null),
+    field(
+      'give up after',
+      timeout,
+      'Seconds to wait before abandoning a request, as a client would. 0 waits forever. Abandoning does not stop the API working on it and does not refund the credit — it only stops you listening.'
+    )
   )
   controls.append(pacingHint)
   container.append(controls)
@@ -225,6 +235,47 @@ export function renderBurst(container, endpoint, state, getToken) {
       }
     }
 
+    // The question a client timeout actually asks.
+    const rows = deliveredBy(results).filter((r) => r.total > 0)
+    if (rows.length) {
+      summaryBox.append(el('div', 'label', 'What a client would have received'))
+      const grid = el('div', 'delivery')
+      for (const row of rows) {
+        const cell = el('div', 'stat')
+        const share = row.total ? Math.round((row.delivered / row.total) * 100) : 0
+        cell.append(el('span', 'stat-value', `${share}%`))
+        cell.append(
+          el(
+            'span',
+            'stat-label',
+            `${row.atLeast ? 'at least ' : ''}${row.delivered} of ${row.total} by ${row.seconds}s`
+          )
+        )
+        grid.append(cell)
+      }
+      summaryBox.append(grid)
+
+      if (rows.some((r) => r.atLeast)) {
+        summaryBox.append(
+          el(
+            'p',
+            'hint',
+            'Figures above your own timeout are floors: a request you abandoned might have landed under a longer one, and there is no way to know after leaving. Run with a longer timeout, or none, to read the whole curve.'
+          )
+        )
+      }
+
+      if (s.timedOut) {
+        summaryBox.append(
+          el(
+            'p',
+            'hint',
+            `${s.timedOut} request${s.timedOut === 1 ? '' : 's'} abandoned — each still charged. Giving up stops you listening, not the API working.`
+          )
+        )
+      }
+    }
+
     if (!s.sawRateLimitHeaders) {
       summaryBox.append(
         el(
@@ -254,7 +305,10 @@ export function renderBurst(container, endpoint, state, getToken) {
     row.append(el('span', 'mono', result.target))
 
     const status = el('span', 'mono status-cell')
-    if (result.transportError) {
+    if (result.timedOut) {
+      status.textContent = 'gave up'
+      status.classList.add('limited')
+    } else if (result.transportError) {
       status.textContent = 'transport'
       status.classList.add('other')
     } else {
@@ -333,6 +387,7 @@ export function renderBurst(container, endpoint, state, getToken) {
         endpoint,
         state: { ...state, [name]: { value: target } },
         token,
+        timeoutMs: Math.max(0, Number(timeout.value) || 0) * 1000,
       })
 
       record.finishedAt = Math.round(performance.now() - startedRun)
@@ -342,6 +397,8 @@ export function renderBurst(container, endpoint, state, getToken) {
       record.status = result.status
       record.headers = result.headers || {}
       record.transportError = result.transportError
+      record.timedOut = result.timedOut
+      record.timeoutMs = result.timeoutMs
       record.body = result.body
 
       table.append(rowFor(record))
@@ -388,6 +445,8 @@ export function renderBurst(container, endpoint, state, getToken) {
         ranAt: new Date().toISOString(),
         requested: Number(count.value),
         pacing: mode.value === 'pool' ? { inFlight: Number(rate.value) } : { perSecond: Number(rate.value) },
+        timeoutSeconds: Math.max(0, Number(timeout.value) || 0),
+        deliveredBy: deliveredBy(results),
         summary: summarise(results, perRequestCost(endpoint, state), Number(count.value) || undefined),
         requests: results,
       },
