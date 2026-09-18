@@ -207,27 +207,52 @@ const page = (title, body, status = 200) =>
     { status, headers: { 'content-type': 'text/html; charset=utf-8' } }
   )
 
-const authConfig = (env) => ({
-  clientId: env.GOOGLE_CLIENT_ID,
-  clientSecret: env.GOOGLE_CLIENT_SECRET,
-  secret: env.SESSION_SECRET,
-  domain: env.ALLOWED_DOMAIN || DEFAULT_DOMAIN,
-  ready: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SESSION_SECRET),
-})
+// Each of these must be a plain string. Pasting a whole JSON file into one of
+// them leaves an object here, which is truthy — so checking only for presence
+// would half-enable the gate on a value that cannot work.
+const settingState = (value) => {
+  if (value === undefined || value === null || value === '') return 'missing'
+  if (typeof value !== 'string') return 'not a plain string — paste only the value, not a JSON file'
+  if (!value.trim()) return 'blank'
+  return 'ok'
+}
+
+const authConfig = (env) => {
+  const checks = {
+    GOOGLE_CLIENT_ID: settingState(env.GOOGLE_CLIENT_ID),
+    GOOGLE_CLIENT_SECRET: settingState(env.GOOGLE_CLIENT_SECRET),
+    SESSION_SECRET: settingState(env.SESSION_SECRET),
+  }
+  return {
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    secret: env.SESSION_SECRET,
+    domain: env.ALLOWED_DOMAIN || DEFAULT_DOMAIN,
+    checks,
+    ready: Object.values(checks).every((state) => state === 'ok'),
+  }
+}
 
 // Sign-in is refused until it is configured, rather than quietly letting
 // everyone in — a gate nobody set up must not look like a gate that passed.
-const setupPage = (url) =>
+// Says which setting is wrong and how, never what it holds.
+const setupPage = (url, checks = {}) =>
   page(
     'Sign-in not configured',
     `<h1>Sign-in is not set up yet</h1>
-     <p>This console is closed until Google sign-in is configured. In the Worker's
-        settings add three encrypted variables:</p>
+     <p>This console stays closed until Google sign-in is configured. Add these
+        in the Worker's settings as <strong>Secret</strong>, one value each:</p>
      <ol>
-       <li><code>GOOGLE_CLIENT_ID</code></li>
-       <li><code>GOOGLE_CLIENT_SECRET</code></li>
-       <li><code>SESSION_SECRET</code> — any long random string</li>
+       ${['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SESSION_SECRET']
+         .map((name) => {
+           const state = checks[name] || 'missing'
+           return `<li><code>${name}</code> — ${state === 'ok' ? 'set' : state}</li>`
+         })
+         .join('')}
      </ol>
+     <p>Each is a single line of text. Pasting the whole downloaded JSON file into
+        one of them will not work — take <code>client_id</code> and
+        <code>client_secret</code> out of it.</p>
      <p>The OAuth client's authorised redirect URI must be exactly:<br>
         <code>${url.origin}/auth/callback</code></p>`,
     503
@@ -244,7 +269,7 @@ async function handleAuth(request, env, url, parts) {
     })
   }
 
-  if (!config.ready) return setupPage(url)
+  if (!config.ready) return setupPage(url, config.checks)
 
   if (parts[1] === 'login') {
     const state = randomToken()
@@ -324,7 +349,7 @@ async function handleAuth(request, env, url, parts) {
 // Returns a response when the caller may not pass, and null when they may.
 async function gate(request, env, url) {
   const config = authConfig(env)
-  if (!config.ready) return setupPage(url)
+  if (!config.ready) return setupPage(url, config.checks)
 
   const session = await verifySession(
     parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],

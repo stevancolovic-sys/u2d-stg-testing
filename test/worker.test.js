@@ -177,6 +177,28 @@ describe('the gate', () => {
     expect((await send('GET', '/links', undefined, { cookie: `${SESSION_COOKIE}=${stale}` })).status).toBe(401)
   })
 
+  it('refuses a setting that holds a pasted JSON file rather than a value', async () => {
+    const wrong = {
+      ...configured,
+      // What pasting the downloaded client_secret.json produces.
+      GOOGLE_CLIENT_SECRET: { web: { client_id: 'x', client_secret: 'y' } },
+    }
+    const res = await send('GET', '/', undefined, { cookie: signedIn, environment: wrong })
+    expect(res.status).toBe(503)
+    const body = await res.text()
+    expect(body).toContain('not a plain string')
+    // It names the setting and its state, never the value.
+    expect(body).not.toContain('client_secret": "y')
+  })
+
+  it('names which settings are missing without printing any of them', async () => {
+    const partial = { ...configured, SESSION_SECRET: '' }
+    const body = await (await send('GET', '/', undefined, { environment: partial })).text()
+    expect(body).toContain('SESSION_SECRET')
+    expect(body).toContain('missing')
+    expect(body).not.toContain('test-client-secret')
+  })
+
   it('stays shut when sign-in has not been configured, rather than open', async () => {
     const bare = { ...env, GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', SESSION_SECRET: '' }
     const res = await send('GET', '/', undefined, { cookie: signedIn, environment: bare })
