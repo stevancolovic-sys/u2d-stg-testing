@@ -224,6 +224,17 @@ requests and at what rate, and the console fires them and reports:
 - **credits spent** — 200 and 404 only; a 429 is free
 - when the first 429 arrived and what `Retry-After` asked for
 
+**Pacing** has two shapes:
+
+- **N per second** — requests leave on a schedule whether or not the earlier
+  ones have answered. `0` sends everything at once, which is the hardest thing
+  you can throw at the limiter.
+- **N at a time** — at most N are ever in flight, and a new one starts when
+  one finishes. At `1` the next request is sent only after the previous comes
+  back, which is the honest measure of a single request: running several at
+  once inflates each one. Measured against staging, a live `company` call
+  averaged 3.1s one at a time and 8.7s at twelve concurrent.
+
 The target list cycles, so five slugs can answer twenty requests; different
 slugs matter, since repeating one can measure a cache rather than the work.
 

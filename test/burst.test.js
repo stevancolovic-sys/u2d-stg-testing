@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickProfile, scheduleDelays, percentile, summarise, reasonFor } from '../public/js/burst.js'
+import { pickProfile, scheduleDelays, percentile, summarise, reasonFor, runPool } from '../public/js/burst.js'
 
 describe('pickProfile', () => {
   it('cycles the list so a short list answers a long run', () => {
@@ -35,6 +35,74 @@ describe('scheduleDelays', () => {
   it('handles a zero or nonsense count', () => {
     expect(scheduleDelays(0, 10)).toEqual([])
     expect(scheduleDelays(-4, 10)).toEqual([])
+  })
+})
+
+describe('runPool', () => {
+  // Records how many tasks were running at once, so overlap is provable
+  // rather than assumed.
+  const tracker = () => {
+    const state = { inFlight: 0, peak: 0, order: [] }
+    const task = async (item) => {
+      state.inFlight += 1
+      state.peak = Math.max(state.peak, state.inFlight)
+      state.order.push(item)
+      await new Promise((r) => setTimeout(r, 5))
+      state.inFlight -= 1
+      return item * 10
+    }
+    return { state, task }
+  }
+
+  it('with a limit of 1, never runs two at once', async () => {
+    const { state, task } = tracker()
+    await runPool([1, 2, 3, 4, 5], 1, task)
+    expect(state.peak).toBe(1)
+  })
+
+  it('with a limit of 1, issues them in order', async () => {
+    const { state, task } = tracker()
+    await runPool([1, 2, 3, 4], 1, task)
+    expect(state.order).toEqual([1, 2, 3, 4])
+  })
+
+  it('keeps at most `limit` in flight', async () => {
+    const { state, task } = tracker()
+    await runPool([1, 2, 3, 4, 5, 6, 7, 8], 3, task)
+    expect(state.peak).toBe(3)
+  })
+
+  it('returns results in input order however they finished', async () => {
+    const out = await runPool([1, 2, 3], 3, async (n) => {
+      await new Promise((r) => setTimeout(r, (4 - n) * 5))
+      return n * 10
+    })
+    expect(out).toEqual([10, 20, 30])
+  })
+
+  it('never starts more workers than there are items', async () => {
+    const { state, task } = tracker()
+    await runPool([1], 10, task)
+    expect(state.peak).toBe(1)
+  })
+
+  it('stops early when asked, leaving the rest unsent', async () => {
+    const seen = []
+    await runPool([1, 2, 3, 4, 5], 1, async (n) => {
+      seen.push(n)
+      return n
+    }, () => seen.length >= 2)
+    expect(seen).toEqual([1, 2])
+  })
+
+  it('treats a nonsense limit as one at a time', async () => {
+    const { state, task } = tracker()
+    await runPool([1, 2, 3], 0, task)
+    expect(state.peak).toBe(1)
+  })
+
+  it('handles an empty list', async () => {
+    expect(await runPool([], 3, async () => 1)).toEqual([])
   })
 })
 

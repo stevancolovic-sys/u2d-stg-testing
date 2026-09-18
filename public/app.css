@@ -564,3 +564,7 @@ button.chip:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px
 .bulk > summary { color: var(--muted); font-size: 13px; cursor: pointer; margin-bottom: 10px; }
 .bulk > summary:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .bulk .textarea { margin-bottom: 8px; }
+
+.pacing { display: flex; gap: 8px; align-items: center; }
+.pacing .input-num { width: 80px; }
+.pacing select.input { flex: 1 1 120px; min-width: 0; }

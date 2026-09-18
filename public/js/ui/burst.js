@@ -6,7 +6,7 @@
 import { callApi } from '../api.js'
 import { estimateCredits } from '../credits.js'
 import { downloadJson } from '../download.js'
-import { pickProfile, scheduleDelays, summarise } from '../burst.js'
+import { pickProfile, scheduleDelays, summarise, runPool } from '../burst.js'
 import { openPicker } from './links.js'
 
 const el = (tag, className, text) => {
@@ -59,6 +59,16 @@ export function renderBurst(container, endpoint, state, getToken) {
   count.max = '200'
   count.value = '20'
 
+  const mode = el('select', 'input')
+  for (const [value, label] of [
+    ['rate', 'per second'],
+    ['pool', 'at a time'],
+  ]) {
+    const option = el('option', null, label)
+    option.value = value
+    mode.append(option)
+  }
+
   const rate = el('input', 'input input-num')
   rate.type = 'number'
   rate.min = '0'
@@ -88,6 +98,27 @@ export function renderBurst(container, endpoint, state, getToken) {
     return wrap
   }
 
+  const pacing = el('div', 'pacing')
+  pacing.append(rate, mode)
+
+  const pacingHint = el('p', 'hint')
+  const describePacing = () => {
+    const n = Math.max(0, Number(rate.value) || 0)
+    if (mode.value === 'pool') {
+      pacingHint.textContent =
+        n <= 1
+          ? 'One at a time: the next request is sent only after the previous one comes back. The honest measure of a single request, since running several at once inflates each one.'
+          : `${n} in flight at once — a new one starts as soon as one finishes.`
+    } else {
+      pacingHint.textContent =
+        n === 0
+          ? 'Everything at once, on one breath. The hardest thing you can throw at the limiter.'
+          : `${n} leave every second whether or not the earlier ones have answered.`
+    }
+  }
+  rate.addEventListener('input', describePacing)
+  mode.addEventListener('change', describePacing)
+
   controls.append(
     field(
       'targets',
@@ -96,9 +127,11 @@ export function renderBurst(container, endpoint, state, getToken) {
       endpoint.id === 'company' ? ['company'] : ['profile']
     ),
     field('requests', count, 'How many to send in total.'),
-    field('per second', rate, 'Pace. 0 sends everything at once.')
+    field('pacing', pacing, null)
   )
+  controls.append(pacingHint)
   container.append(controls)
+  describePacing()
 
   const estimate = el('p', 'burst-estimate')
   container.append(estimate)
@@ -267,7 +300,14 @@ export function renderBurst(container, endpoint, state, getToken) {
     const each = perRequestCost(endpoint, state)
     const worst = n * each
 
-    if (!confirm(`Send ${n} requests to ${endpoint.path}.\n\nUp to ${worst} credits if every one is answered; rate-limited requests cost nothing.\n\nRun it?`)) {
+    const shape =
+      mode.value === 'pool'
+        ? `${Math.max(1, Number(rate.value) || 1)} at a time`
+        : Number(rate.value) > 0
+          ? `${Number(rate.value)} per second`
+          : 'all at once'
+
+    if (!confirm(`Send ${n} requests to ${endpoint.path}, ${shape}.\n\nUp to ${worst} credits if every one is answered; rate-limited requests cost nothing.\n\nRun it?`)) {
       return
     }
 
@@ -281,13 +321,10 @@ export function renderBurst(container, endpoint, state, getToken) {
     save.disabled = true
 
     const name = targetField(endpoint)
-    const delays = scheduleDelays(n, Number(rate.value))
     const startedRun = performance.now()
 
-    const inFlight = delays.map(async (delay, i) => {
-      if (delay) await sleep(delay)
+    const send = async (i) => {
       if (cancel) return
-
       const target = pickProfile(list, i)
       const record = { seq: i, target, startedAt: Math.round(performance.now() - startedRun) }
       results.push(record)
@@ -309,9 +346,24 @@ export function renderBurst(container, endpoint, state, getToken) {
 
       table.append(rowFor(record))
       renderSummary()
-    })
+      return record
+    }
 
-    await Promise.all(inFlight)
+    const indices = Array.from({ length: n }, (_, i) => i)
+
+    if (mode.value === 'pool') {
+      // Each request waits for a slot, so at a width of 1 they go one by one.
+      await runPool(indices, Number(rate.value), (i) => send(i), () => cancel)
+    } else {
+      // Fired on a schedule, whether or not the earlier ones have answered.
+      const delays = scheduleDelays(n, Number(rate.value))
+      await Promise.all(
+        delays.map(async (delay, i) => {
+          if (delay) await sleep(delay)
+          return send(i)
+        })
+      )
+    }
 
     running = false
     go.disabled = false
@@ -335,7 +387,7 @@ export function renderBurst(container, endpoint, state, getToken) {
         endpoint: endpoint.path,
         ranAt: new Date().toISOString(),
         requested: Number(count.value),
-        ratePerSecond: Number(rate.value),
+        pacing: mode.value === 'pool' ? { inFlight: Number(rate.value) } : { perSecond: Number(rate.value) },
         summary: summarise(results, perRequestCost(endpoint, state), Number(count.value) || undefined),
         requests: results,
       },

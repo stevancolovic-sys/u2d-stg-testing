@@ -24,6 +24,28 @@ export function scheduleDelays(count, ratePerSecond) {
   return delays
 }
 
+// Runs `task` over every item with at most `limit` of them in flight. A limit
+// of 1 means the next request is issued only once the previous one has come
+// back — the honest way to measure a single request, since concurrency is
+// what inflates each one's time.
+export async function runPool(items, limit, task, shouldStop = () => false) {
+  const width = Math.max(1, Math.floor(limit) || 1)
+  const results = new Array(items.length)
+  let next = 0
+
+  const worker = async () => {
+    for (;;) {
+      if (shouldStop()) return
+      const index = next++
+      if (index >= items.length) return
+      results[index] = await task(items[index], index)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, worker))
+  return results
+}
+
 export function percentile(values, p) {
   if (!values.length) return 0
   const sorted = [...values].sort((a, b) => a - b)
