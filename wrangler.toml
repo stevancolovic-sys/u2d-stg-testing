@@ -9,9 +9,17 @@ compatibility_date = "2025-09-01"
 name = "HOOKS"
 class_name = "HookStore"
 
+[[durable_objects.bindings]]
+name = "LINKS"
+class_name = "LinkStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["HookStore"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["LinkStore"]
 
 [assets]
 directory = "./public"

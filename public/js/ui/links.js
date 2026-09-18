@@ -1,0 +1,273 @@
+// Saved Links: a library of the URLs you keep pasting, typed so the console
+// can offer only the ones a given field accepts.
+
+import { TYPES, typeById, detectType, describe, normaliseLink, dedupeKey, filterLinks } from '../links.js'
+
+const el = (tag, className, text) => {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
+}
+
+let cache = []
+const listeners = new Set()
+
+const announce = () => listeners.forEach((fn) => fn(cache))
+export const onLinksChanged = (fn) => listeners.add(fn)
+
+export async function loadLinks() {
+  const res = await fetch('/links')
+  if (!res.ok) throw new Error(`links returned ${res.status}`)
+  const { links } = await res.json()
+  cache = links.map(normaliseLink)
+  announce()
+  return cache
+}
+
+export async function saveLinks(inputs) {
+  const payload = inputs.map((input) => {
+    const link = normaliseLink(input)
+    return { ...link, key: dedupeKey(link.url), id: link.id || crypto.randomUUID().slice(0, 12) }
+  })
+  const res = await fetch('/links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(`save returned ${res.status}`)
+  const { links } = await res.json()
+  cache = links.map(normaliseLink)
+  announce()
+  return cache
+}
+
+export async function deleteLink(id) {
+  const res = await fetch(`/links?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const { links } = await res.json()
+  cache = links.map(normaliseLink)
+  announce()
+  return cache
+}
+
+export const currentLinks = () => cache
+
+// --- the picker a form field opens ---------------------------------------
+
+export function openPicker(anchor, acceptedTypes, onInsert) {
+  const existing = anchor.parentElement.querySelector('.picker')
+  if (existing) {
+    existing.remove()
+    return
+  }
+
+  const picker = el('div', 'picker')
+  const search = el('input', 'input')
+  search.type = 'search'
+  search.placeholder = 'Filter saved links'
+  picker.append(search)
+
+  const list = el('div', 'picker-list')
+  picker.append(list)
+
+  const chosen = new Set()
+
+  const draw = () => {
+    list.textContent = ''
+    const matching = filterLinks(cache, { query: search.value }).filter((l) =>
+      acceptedTypes.includes(l.type)
+    )
+
+    if (!matching.length) {
+      list.append(
+        el(
+          'p',
+          'hint',
+          cache.length
+            ? `Nothing saved of the kind this field takes (${acceptedTypes.map((t) => typeById(t)?.label || t).join(', ')}).`
+            : 'Nothing saved yet — add links on the Saved links tab.'
+        )
+      )
+      return
+    }
+
+    for (const link of matching) {
+      const row = el('label', 'picker-row')
+      const box = el('input')
+      box.type = 'checkbox'
+      box.checked = chosen.has(link.url)
+      box.addEventListener('change', () => {
+        if (box.checked) chosen.add(link.url)
+        else chosen.delete(link.url)
+        insert.textContent = `Insert ${chosen.size || ''}`.trim()
+      })
+      row.append(box, el('span', null, link.label), el('span', 'mono muted', link.url))
+      list.append(row)
+    }
+  }
+
+  search.addEventListener('input', draw)
+
+  const actions = el('div', 'row-actions')
+  const insert = el('button', 'btn-ghost', 'Insert')
+  insert.addEventListener('click', () => {
+    if (chosen.size) onInsert([...chosen])
+    picker.remove()
+  })
+  const close = el('button', 'btn-ghost', 'Close')
+  close.addEventListener('click', () => picker.remove())
+  actions.append(insert, close)
+  picker.append(actions)
+
+  anchor.parentElement.append(picker)
+  draw()
+  search.focus()
+}
+
+// --- the page ------------------------------------------------------------
+
+export function mountLinks(container) {
+  container.textContent = ''
+
+  const form = el('div', 'link-form')
+  const url = el('input', 'input')
+  url.type = 'text'
+  url.placeholder = 'https://www.linkedin.com/in/johndoe'
+  const label = el('input', 'input')
+  label.type = 'text'
+  label.placeholder = 'Name it (optional)'
+  const tags = el('input', 'input')
+  tags.type = 'text'
+  tags.placeholder = 'tags, comma separated (optional)'
+
+  const typeSelect = el('select', 'input')
+  const autoOption = el('option', null, 'Detect from the URL')
+  autoOption.value = ''
+  typeSelect.append(autoOption)
+  for (const t of TYPES) {
+    const option = el('option', null, t.label)
+    option.value = t.id
+    typeSelect.append(option)
+  }
+
+  const detected = el('p', 'hint')
+  url.addEventListener('input', () => {
+    const type = detectType(url.value)
+    detected.textContent = type
+      ? `Recognised as ${typeById(type).label} — used by ${typeById(type).feeds}.`
+      : url.value.trim()
+        ? 'Not a LinkedIn URL this console recognises — pick a type so it knows which fields can take it.'
+        : ''
+    if (!label.value) label.placeholder = describe(url.value) || 'Name it (optional)'
+  })
+
+  const add = el('button', 'btn', 'Save link')
+  const status = el('p', 'hint')
+
+  add.addEventListener('click', async () => {
+    const value = url.value.trim()
+    if (!value) return
+    add.disabled = true
+    try {
+      await saveLinks([{ url: value, label: label.value, tags: tags.value, type: typeSelect.value || undefined }])
+      url.value = ''
+      label.value = ''
+      tags.value = ''
+      typeSelect.value = ''
+      detected.textContent = ''
+      status.textContent = 'Saved.'
+      setTimeout(() => (status.textContent = ''), 1500)
+    } catch (err) {
+      status.textContent = String(err.message || err)
+    }
+    add.disabled = false
+  })
+
+  form.append(url, label, tags, typeSelect, add)
+  container.append(form, detected, status)
+
+  // --- filters ---
+  const filters = el('div', 'row-actions')
+  const search = el('input', 'input')
+  search.type = 'search'
+  search.placeholder = 'Search saved links'
+  filters.append(search)
+
+  let activeType = null
+  const chips = el('div', 'link-types')
+  const drawChips = () => {
+    chips.textContent = ''
+    const all = el('button', 'chip' + (activeType === null ? ' on' : ''), `All ${cache.length}`)
+    all.addEventListener('click', () => {
+      activeType = null
+      render()
+    })
+    chips.append(all)
+    for (const t of TYPES) {
+      const n = cache.filter((l) => l.type === t.id).length
+      const chip = el('button', 'chip' + (activeType === t.id ? ' on' : ''), `${t.label} ${n}`)
+      chip.addEventListener('click', () => {
+        activeType = activeType === t.id ? null : t.id
+        render()
+      })
+      chips.append(chip)
+    }
+  }
+
+  const listNode = el('div', 'link-list')
+  container.append(filters, chips, listNode)
+
+  function render() {
+    drawChips()
+    listNode.textContent = ''
+
+    const matching = filterLinks(cache, { type: activeType, query: search.value })
+    if (!matching.length) {
+      listNode.append(
+        el('p', 'hint', cache.length ? 'Nothing matches that.' : 'No links saved yet. Paste one above.')
+      )
+      return
+    }
+
+    for (const link of matching) {
+      const row = el('div', 'link-row')
+      const type = typeById(link.type)
+      row.append(el('span', 'chip', type ? type.label : 'untyped'))
+      row.append(el('span', 'link-label', link.label))
+
+      const anchor = el('a', 'mono muted link-url')
+      anchor.href = link.url
+      anchor.target = '_blank'
+      anchor.rel = 'noreferrer noopener'
+      anchor.textContent = link.url
+      row.append(anchor)
+
+      if (link.tags.length) row.append(el('span', 'muted', link.tags.join(' · ')))
+
+      const copy = el('button', 'btn-ghost', 'Copy')
+      copy.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(link.url)
+        copy.textContent = 'Copied'
+        setTimeout(() => (copy.textContent = 'Copy'), 1200)
+      })
+
+      const remove = el('button', 'btn-ghost danger', 'Delete')
+      remove.addEventListener('click', async () => {
+        await deleteLink(link.id)
+      })
+
+      row.append(copy, remove)
+      listNode.append(row)
+    }
+  }
+
+  search.addEventListener('input', render)
+  onLinksChanged(render)
+
+  loadLinks()
+    .then(render)
+    .catch((err) => {
+      listNode.textContent = ''
+      listNode.append(el('p', 'hint', `Could not load saved links: ${err.message}`))
+    })
+}

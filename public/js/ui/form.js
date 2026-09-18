@@ -5,6 +5,8 @@
 // the request preview loses the key at the same moment. That pairing is the
 // point of the tool, so it is made as visible as possible.
 
+import { openPicker } from './links.js'
+
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
   if (className) node.className = className
@@ -208,6 +210,30 @@ export function renderForm(container, endpoint, state, onChange) {
       toggle.append(box, el('span', 'key mono', field.label))
       head.append(toggle)
       head.append(el('span', 'opt', entry.enabled ? 'sent' : 'not sent'))
+    }
+
+    // Saved links of the kind this field takes — never of any other kind.
+    if (field.linkTypes && field.linkTypes.length) {
+      const pick = el('button', 'btn-ghost', 'Insert saved')
+      pick.type = 'button'
+      pick.addEventListener('click', () =>
+        openPicker(pick, field.linkTypes, (urls) => {
+          if (field.type === 'links') {
+            const rows = entry.value.filter((r) => r.url)
+            entry.value = [...rows, ...urls.map((u) => ({ url: u, limitEnabled: false, limit: '' }))]
+            renderForm(container, endpoint, state, onChange)
+          } else if (field.type === 'lines') {
+            const existing = String(entry.value || '').split('\n').map((s) => s.trim()).filter(Boolean)
+            entry.value = [...new Set([...existing, ...urls])].join('\n')
+            renderForm(container, endpoint, state, onChange)
+          } else {
+            entry.value = urls[0]
+            renderForm(container, endpoint, state, onChange)
+          }
+          onChange()
+        })
+      )
+      head.append(pick)
     }
 
     row.append(head)

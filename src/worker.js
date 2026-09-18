@@ -99,6 +99,83 @@ export class HookStore {
   }
 }
 
+// Saved links live in one Durable Object shared by everyone who opens the
+// console, so the list is the same from any device.
+export class LinkStore {
+  constructor(ctx) {
+    this.ctx = ctx
+    this.sql = ctx.storage.sql
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS links (
+      key TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      type TEXT,
+      label TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      created_ms INTEGER NOT NULL
+    )`)
+  }
+
+  list() {
+    return this.sql
+      .exec('SELECT * FROM links ORDER BY created_ms DESC')
+      .toArray()
+      .map((row) => ({
+        id: row.id,
+        url: row.url,
+        type: row.type,
+        label: row.label,
+        tags: JSON.parse(row.tags),
+        createdAt: new Date(row.created_ms).toISOString(),
+      }))
+  }
+
+  // Saving the same link twice updates it rather than making a duplicate:
+  // the client sends the key it derived, so the rule lives in one place.
+  save(links) {
+    const now = Date.now()
+    for (const link of links) {
+      if (!link || !link.key || !link.url) continue
+      this.sql.exec(
+        `INSERT INTO links (key, id, url, type, label, tags, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET
+           url = excluded.url, type = excluded.type,
+           label = excluded.label, tags = excluded.tags`,
+        link.key,
+        link.id || crypto.randomUUID().slice(0, 12),
+        link.url,
+        link.type || null,
+        link.label || link.url,
+        JSON.stringify(Array.isArray(link.tags) ? link.tags : []),
+        now
+      )
+    }
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url)
+
+    if (request.method === 'GET') return json({ links: this.list() })
+
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => null)
+      const links = Array.isArray(body) ? body : body ? [body] : []
+      this.save(links)
+      return json({ saved: links.length, links: this.list() })
+    }
+
+    if (request.method === 'DELETE') {
+      const id = url.searchParams.get('id')
+      if (id) this.sql.exec('DELETE FROM links WHERE id = ?', id)
+      else this.sql.exec('DELETE FROM links')
+      return json({ links: this.list() })
+    }
+
+    return json({ error: 'Not found' }, 404)
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -121,6 +198,18 @@ export default {
         console.error('hook store failed', err)
         return json({ received: false })
       }
+    }
+
+    // Before the catch-all below, which treats any other POST as a callback.
+    if (parts[0] === 'links' && !parts[1]) {
+      const stub = env.LINKS.get(env.LINKS.idFromName('links'))
+      return stub.fetch(
+        new Request(`https://do/${url.search}`, {
+          method: request.method,
+          headers: request.headers,
+          body: request.method === 'GET' || request.method === 'DELETE' ? undefined : request.body,
+        })
+      )
     }
 
     if (parts[0] === 'hook' && parts[1]) {

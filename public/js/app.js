@@ -8,6 +8,7 @@ import { renderResponse, captureQueues, renderResolvedWebhooks } from './ui/resp
 import { mountQueues, addQueues } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
 import { renderBurst } from './ui/burst.js'
+import { mountLinks } from './ui/links.js'
 
 const TOKEN_KEY = 'up2data.auth'
 const LAST_KEY = 'up2data.endpoint'
@@ -392,6 +393,7 @@ setInterval(renderAuth, 60000)
 
 mountQueues($('#queues'), { getToken })
 mountWebhooks($('#webhooks'))
+mountLinks($('#links'))
 
 $('#auth-btn').addEventListener('click', authenticate)
 $('#api-key').addEventListener('keydown', (e) => {
