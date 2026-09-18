@@ -138,8 +138,23 @@ export function renderBurst(container, endpoint, state, getToken) {
     const second = el('div', 'stats stats-minor')
     second.append(stat('p50', seconds(s.p50)))
     second.append(stat('p95', seconds(s.p95)))
+    second.append(stat('waiting on server', seconds(s.avgWaitingMs)))
+    second.append(stat('downloading', seconds(s.avgDownloadMs)))
+    second.append(stat('response size', `${(s.avgBytes / 1024).toFixed(1)} KB`))
     second.append(stat('credits spent', s.credits))
     summaryBox.append(second)
+
+    if (s.avgMs > 0) {
+      const share = Math.round((s.avgWaitingMs / s.avgMs) * 100)
+      summaryBox.append(
+        el(
+          'p',
+          'hint',
+          `${share}% of the average request was spent waiting for the API to answer — that is LinkedIn being scraped, not bytes moving. ` +
+            'A finer breakdown (DNS, TCP, time to first byte) needs a Timing-Allow-Origin header the API does not send.'
+        )
+      )
+    }
 
     if (s.failures.length) {
       summaryBox.append(el('div', 'label', 'Why the rest did not succeed'))
@@ -193,7 +208,16 @@ export function renderBurst(container, endpoint, state, getToken) {
     }
     row.append(status)
 
-    row.append(el('span', 'mono muted', `${result.finishedAt - result.startedAt} ms`))
+    const total = result.finishedAt - result.startedAt
+    row.append(el('span', 'mono', `${total} ms`))
+    if (Number.isFinite(result.waitingMs)) {
+      row.append(
+        el('span', 'mono muted', `server ${result.waitingMs} · download ${result.downloadMs}`)
+      )
+    }
+    if (Number.isFinite(result.bytes)) {
+      row.append(el('span', 'mono muted', `${(result.bytes / 1024).toFixed(1)} KB`))
+    }
 
     const remaining = result.headers && result.headers['ratelimit-remaining']
     const retry = result.headers && result.headers['retry-after']
@@ -253,6 +277,9 @@ export function renderBurst(container, endpoint, state, getToken) {
       })
 
       record.finishedAt = Math.round(performance.now() - startedRun)
+      record.waitingMs = result.waitingMs
+      record.downloadMs = result.downloadMs
+      record.bytes = result.bytes
       record.status = result.status
       record.headers = result.headers || {}
       record.transportError = result.transportError

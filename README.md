@@ -168,6 +168,11 @@ requests and at what rate, and the console fires them and reports:
   expired, never reached the API), biggest group first
 - **per second** — requests completed across the run
 - **average each**, and **p50 / p95**
+- **waiting on server** vs **downloading** — `fetch` resolves when the
+  response headers arrive, so this split separates the API doing the work
+  from the bytes moving. A finer breakdown (DNS, TCP, time to first byte)
+  would need a `Timing-Allow-Origin` header the API does not send.
+- **response size**
 - **all of them took** — wall clock from first request to last response
 - **credits spent** — 200 and 404 only; a 429 is free
 - when the first 429 arrived and what `Retry-After` asked for
@@ -195,6 +200,9 @@ The whole run downloads as JSON, one entry per request.
   API does list those headers in `access-control-expose-headers`. Latency
   under that concurrency ranged from 3.2s to 14.5s. Treat the documented limit
   as unverified on staging.
+- Live request time is the API working, not the network. A live `company`
+  call measured 2,739 ms total: 2,739 ms waiting for the response headers,
+  0 ms downloading, 953 bytes of body. The wait is LinkedIn being scraped.
 - A finished activity queue has been observed reporting `1/1` processed while
   `/open-refresh/list` returns `{"items":[],"total":0}`, with or without
   `failed=true`. When that happens the console says so instead of showing a

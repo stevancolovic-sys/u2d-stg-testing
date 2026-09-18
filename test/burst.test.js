@@ -95,6 +95,25 @@ describe('summarise', () => {
     expect(summarise(run, 2, 6).avgMs).toBe(102)
   })
 
+  it('splits the average into server time and download time', () => {
+    const timed = [
+      { seq: 0, status: 200, startedAt: 0, finishedAt: 7033, waitingMs: 7001, downloadMs: 32, bytes: 4000, headers: {} },
+      { seq: 1, status: 200, startedAt: 0, finishedAt: 3011, waitingMs: 2999, downloadMs: 12, bytes: 2000, headers: {} },
+    ]
+    const s = summarise(timed, 2, 2)
+    expect(s.avgMs).toBe(5022)
+    expect(s.avgWaitingMs).toBe(5000)
+    expect(s.avgDownloadMs).toBe(22)
+    expect(s.avgBytes).toBe(3000)
+  })
+
+  it('reports zero rather than NaN when timings are missing', () => {
+    const s = summarise(run, 2, 6)
+    expect(s.avgWaitingMs).toBe(0)
+    expect(s.avgDownloadMs).toBe(0)
+    expect(s.avgBytes).toBe(0)
+  })
+
   it('counts every status, transport failures included', () => {
     const s = summarise(run, 2)
     expect(s.sent).toBe(6)

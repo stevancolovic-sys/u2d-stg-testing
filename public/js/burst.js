@@ -94,9 +94,17 @@ export function summarise(results, perRequestCost, requested) {
   }
   const failures = [...grouped.values()].sort((a, b) => b.count - a.count)
 
-  const avgMs = durations.length
-    ? Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length)
-    : 0
+  const mean = (values) =>
+    values.length ? Math.round(values.reduce((sum, v) => sum + v, 0) / values.length) : 0
+
+  const avgMs = mean(durations)
+
+  // Where the time went. Waiting is the server doing the work; download is
+  // moving the answer. A browser cannot see finer than this against an API
+  // that sends no Timing-Allow-Origin header.
+  const avgWaitingMs = mean(done.map((r) => r.waitingMs).filter((v) => Number.isFinite(v)))
+  const avgDownloadMs = mean(done.map((r) => r.downloadMs).filter((v) => Number.isFinite(v)))
+  const avgBytes = mean(done.map((r) => r.bytes).filter((v) => Number.isFinite(v)))
 
   return {
     requested: requested ?? done.length,
@@ -105,6 +113,9 @@ export function summarise(results, perRequestCost, requested) {
     failed: notSucceeded.length,
     failures,
     avgMs,
+    avgWaitingMs,
+    avgDownloadMs,
+    avgBytes,
     byStatus,
     billed,
     credits: billed * perRequestCost,
