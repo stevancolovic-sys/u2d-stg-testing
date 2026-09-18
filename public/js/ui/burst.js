@@ -7,6 +7,7 @@ import { callApi } from '../api.js'
 import { estimateCredits } from '../credits.js'
 import { downloadJson } from '../download.js'
 import { pickProfile, scheduleDelays, summarise } from '../burst.js'
+import { openPicker } from './links.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -63,16 +64,37 @@ export function renderBurst(container, endpoint, state, getToken) {
   rate.min = '0'
   rate.value = '20'
 
-  const field = (label, control, hint) => {
+  const field = (label, control, hint, linkTypes) => {
     const wrap = el('div', 'burst-field')
-    wrap.append(el('label', 'key mono', label))
+    const head = el('div', 'field-head')
+    head.append(el('label', 'key mono', label))
+
+    if (linkTypes) {
+      const pick = el('button', 'btn-ghost', 'Insert saved')
+      pick.type = 'button'
+      pick.addEventListener('click', () =>
+        openPicker(pick, linkTypes, (urls) => {
+          const existing = control.value.split('\n').map((s) => s.trim()).filter(Boolean)
+          control.value = [...new Set([...existing, ...urls])].join('\n')
+          control.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      )
+      head.append(pick)
+    }
+
+    wrap.append(head)
     wrap.append(control)
     if (hint) wrap.append(el('p', 'hint', hint))
     return wrap
   }
 
   controls.append(
-    field('targets', targets, 'One per line. The list cycles, so five entries can answer twenty requests — different slugs stop you measuring a cache.'),
+    field(
+      'targets',
+      targets,
+      'One per line — URLs or bare URN ids. The list cycles, so five entries can answer twenty requests; different targets stop you measuring a cache.',
+      endpoint.id === 'company' ? ['company'] : ['profile']
+    ),
     field('requests', count, 'How many to send in total.'),
     field('per second', rate, 'Pace. 0 sends everything at once.')
   )

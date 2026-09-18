@@ -8,8 +8,10 @@ export const TYPES = [
   {
     id: 'profile',
     label: 'Profile',
-    // linkedin.com/in/<slug>
-    match: /linkedin\.com\/in\/([^/?#]+)/i,
+    // linkedin.com/in/<slug>, or a bare URN member id such as ACoAAA… which
+    // the API accepts wherever a profile is expected. These are
+    // case-sensitive, so the pattern is not anchored case-insensitively.
+    match: /linkedin\.com\/in\/([^/?#]+)|^(AC[A-Za-z0-9_-]{28,60})$/,
     feeds: 'profiles, activity, latest post, live profile, burst',
   },
   {
@@ -58,7 +60,9 @@ export function describe(url) {
   const text = String(url || '').trim()
   for (const type of TYPES) {
     const m = text.match(type.match)
-    if (m) return m[1] ? decodeURIComponent(m[1]) : type.label
+    if (!m) continue
+    const captured = m[1] || m[2]
+    return captured ? decodeURIComponent(captured) : type.label
   }
   return text.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)
 }
@@ -78,13 +82,32 @@ export function normaliseLink(input) {
 }
 
 // Same link saved twice is the same link, whatever the query string says.
-export const dedupeKey = (url) =>
-  String(url || '')
-    .trim()
+export const dedupeKey = (url) => {
+  const text = String(url || '').trim()
+  // URN member ids are case-sensitive — ACoAA and acoaa are different people.
+  if (/^AC[A-Za-z0-9_-]{28,60}$/.test(text)) return text
+  return text
     .toLowerCase()
     .replace(/^https?:\/\/(www\.)?/, '')
     .replace(/[?#].*$/, '')
     .replace(/\/+$/, '')
+}
+
+// A pasted block becomes one link per line, blanks and duplicates dropped,
+// order kept.
+export function splitPasted(text) {
+  const seen = new Set()
+  const out = []
+  for (const raw of String(text || '').split(/[\n,]/)) {
+    const value = raw.trim()
+    if (!value) continue
+    const key = dedupeKey(value)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(value)
+  }
+  return out
+}
 
 export function filterLinks(links, { type, query } = {}) {
   const q = String(query || '').trim().toLowerCase()

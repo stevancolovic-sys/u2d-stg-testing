@@ -1,7 +1,7 @@
 // Saved Links: a library of the URLs you keep pasting, typed so the console
 // can offer only the ones a given field accepts.
 
-import { TYPES, typeById, detectType, describe, normaliseLink, dedupeKey, filterLinks } from '../links.js'
+import { TYPES, typeById, detectType, describe, normaliseLink, dedupeKey, filterLinks, splitPasted } from '../links.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -185,6 +185,81 @@ export function mountLinks(container) {
 
   form.append(url, label, tags, typeSelect, add)
   container.append(form, detected, status)
+
+  // --- pasting a list ---
+  const bulk = el('details', 'bulk')
+  bulk.append(el('summary', null, 'Paste a list'))
+
+  const bulkBox = el('textarea', 'input textarea')
+  bulkBox.rows = 6
+  bulkBox.placeholder =
+    'One per line — URLs or bare URN ids\nACoAAAFQVg8Bl5-CNIAKaZpnJnNUZp6WQul09V0\nhttps://www.linkedin.com/in/johndoe'
+  bulkBox.spellcheck = false
+
+  const bulkTags = el('input', 'input')
+  bulkTags.type = 'text'
+  bulkTags.placeholder = 'tags for all of them (optional)'
+
+  const bulkType = el('select', 'input')
+  const bulkAuto = el('option', null, 'Detect each from its value')
+  bulkAuto.value = ''
+  bulkType.append(bulkAuto)
+  for (const t of TYPES) {
+    const option = el('option', null, `All are ${t.label}`)
+    option.value = t.id
+    bulkType.append(option)
+  }
+
+  const bulkCount = el('p', 'hint')
+  const readBulk = () => splitPasted(bulkBox.value)
+
+  const describeBulk = () => {
+    const values = readBulk()
+    if (!values.length) {
+      bulkCount.textContent = ''
+      return
+    }
+    const chosen = bulkType.value
+    const counts = {}
+    let unknown = 0
+    for (const value of values) {
+      const type = chosen || detectType(value)
+      if (type) counts[type] = (counts[type] || 0) + 1
+      else unknown += 1
+    }
+    const parts = Object.entries(counts).map(([id, n]) => `${n} ${typeById(id).label.toLowerCase()}`)
+    if (unknown) parts.push(`${unknown} of no recognisable type`)
+    bulkCount.textContent = `${values.length} to save — ${parts.join(', ')}.` +
+      (unknown ? ' Pick a type above so the untyped ones can be offered to a field.' : '')
+  }
+
+  bulkBox.addEventListener('input', describeBulk)
+  bulkType.addEventListener('change', describeBulk)
+
+  const bulkSave = el('button', 'btn', 'Save all')
+  bulkSave.addEventListener('click', async () => {
+    const values = readBulk()
+    if (!values.length) return
+    bulkSave.disabled = true
+    bulkSave.textContent = `Saving ${values.length}…`
+    try {
+      await saveLinks(
+        values.map((value) => ({ url: value, tags: bulkTags.value, type: bulkType.value || undefined }))
+      )
+      bulkBox.value = ''
+      bulkTags.value = ''
+      bulkCount.textContent = `Saved ${values.length}.`
+    } catch (err) {
+      bulkCount.textContent = String(err.message || err)
+    }
+    bulkSave.disabled = false
+    bulkSave.textContent = 'Save all'
+  })
+
+  const bulkRow = el('div', 'link-form')
+  bulkRow.append(bulkTags, bulkType, bulkSave)
+  bulk.append(bulkBox, bulkRow, bulkCount)
+  container.append(bulk)
 
   // --- filters ---
   const filters = el('div', 'row-actions')

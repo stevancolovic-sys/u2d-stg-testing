@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectType, describe as describeLink, normaliseLink, dedupeKey, filterLinks, typeById, TYPES } from '../public/js/links.js'
+import { detectType, describe as describeLink, normaliseLink, dedupeKey, filterLinks, splitPasted, typeById, TYPES } from '../public/js/links.js'
 
 describe('detectType', () => {
   it('knows a profile', () => {
@@ -24,6 +24,17 @@ describe('detectType', () => {
     expect(detectType('https://www.linkedin.com/posts/johndoe_hiring-activity-72456789-Ab1c')).toBe('post')
   })
 
+  it('knows a bare URN member id is a profile', () => {
+    expect(detectType('ACoAAAFQVg8Bl5-CNIAKaZpnJnNUZp6WQul09V0')).toBe('profile')
+    expect(detectType('ACoAAAHoDUoBw5ydmxJ98GFJ__pc6ZiXcJ-mlk')).toBe('profile')
+    expect(detectType('ACwAADabcdefghijklmnopqrstuvwxyz12345')).toBe('profile')
+  })
+
+  it('does not mistake a short word for a URN', () => {
+    expect(detectType('ACoAA')).toBe(null)
+    expect(detectType('ACCOUNTING')).toBe(null)
+  })
+
   it('returns null for a bare slug, which could be anything', () => {
     expect(detectType('johndoe')).toBe(null)
     expect(detectType('')).toBe(null)
@@ -46,6 +57,11 @@ describe('describe', () => {
 
   it('names a search by its kind', () => {
     expect(describeLink('https://www.linkedin.com/sales/search/people?query=abc')).toBe('Lead search')
+  })
+
+  it('shows a URN id as itself', () => {
+    const urn = 'ACoAAAFQVg8Bl5-CNIAKaZpnJnNUZp6WQul09V0'
+    expect(describeLink(urn)).toBe(urn)
   })
 
   it('falls back to a trimmed url', () => {
@@ -81,6 +97,41 @@ describe('dedupeKey', () => {
 
   it('keeps different links apart', () => {
     expect(dedupeKey('https://www.linkedin.com/in/a')).not.toBe(dedupeKey('https://www.linkedin.com/in/b'))
+  })
+})
+
+describe('dedupeKey with URN ids', () => {
+  it('keeps a URN exactly as sent — the id is case-sensitive', () => {
+    const urn = 'ACoAAAFQVg8Bl5-CNIAKaZpnJnNUZp6WQul09V0'
+    expect(dedupeKey(urn)).toBe(urn)
+    expect(dedupeKey(urn)).not.toBe(dedupeKey(urn.toLowerCase()))
+  })
+})
+
+describe('splitPasted', () => {
+  it('takes one per line and drops blanks', () => {
+    expect(splitPasted('a\n\n b \nc\n')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('splits on commas too', () => {
+    expect(splitPasted('a, b,c')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('drops duplicates while keeping order', () => {
+    expect(splitPasted('https://www.linkedin.com/in/a\nhttps://linkedin.com/in/a/?trk=x\nb')).toEqual([
+      'https://www.linkedin.com/in/a',
+      'b',
+    ])
+  })
+
+  it('keeps two URNs that differ only in case', () => {
+    const a = 'ACoAAAFQVg8Bl5-CNIAKaZpnJnNUZp6WQul09V0'
+    expect(splitPasted(`${a}\n${a.toLowerCase()}`).length).toBe(2)
+  })
+
+  it('handles an empty paste', () => {
+    expect(splitPasted('')).toEqual([])
+    expect(splitPasted(null)).toEqual([])
   })
 })
 

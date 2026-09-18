@@ -172,6 +172,7 @@ when you save it:
 | URL shape | type | fields that accept it |
 |---|---|---|
 | `linkedin.com/in/<slug>` | Profile | `profiles`, `profile` (live), burst targets |
+| a bare URN id, `ACoAA…` | Profile | the same — the API takes these wherever a profile is expected |
 | `linkedin.com/company/<slug>` | Company | `companies`, `company` (live) |
 | `/sales/search/people` | Lead search | `search`, `partial-sales-profiles` |
 | `/sales/search/company` | Account search | `search`, `partial-sales-companies` |
@@ -182,8 +183,13 @@ button offering only the kind it accepts, so a company URL can never land in a
 field expecting a profile. A bare slug carries nothing to detect, so saving
 one asks you to pick the type.
 
+**Paste a list** takes a whole block at once, one per line or comma separated,
+and reports what it recognised before saving. Give the batch shared tags, or
+force a type when the values carry nothing to detect.
+
 Saving the same link twice updates it rather than duplicating it — the key
-ignores `www.`, the scheme, query strings and trailing slashes.
+ignores `www.`, the scheme, query strings and trailing slashes. URN ids are
+the exception: they are case-sensitive, so they are compared exactly.
 
 The store is shared and unauthenticated, like the callback sink: anyone with
 the Worker URL can read and change it. Fine for LinkedIn URLs; do not keep
