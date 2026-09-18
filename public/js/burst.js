@@ -35,7 +35,24 @@ export function percentile(values, p) {
 // Everything else (429, 403, 400, 503, a transport failure) is free.
 export const BILLED_STATUSES = [200, 404]
 
-export function summarise(results, perRequestCost) {
+// Why a request did not succeed, in the API's own terms. A bare status code
+// makes you go and look it up; the run should just say it.
+export const REASONS = {
+  200: 'enriched',
+  404: 'no such record on LinkedIn — still billed',
+  429: 'rate limited by the team\u2019s shared window',
+  403: 'not enough credits on the team',
+  400: 'not a LinkedIn URL or slug of the right kind, or the spending cap is reached',
+  401: 'token missing, invalid or expired',
+  503: 'no worker free within 10s, or the crawl could not finish — retry later',
+}
+
+export const reasonFor = (result) => {
+  if (result.transportError) return 'never reached the API — network or CORS'
+  return REASONS[result.status] || `unexpected status ${result.status}`
+}
+
+export function summarise(results, perRequestCost, requested) {
   const done = results.filter((r) => r.finishedAt !== undefined)
 
   const byStatus = {}
@@ -63,8 +80,31 @@ export function summarise(results, perRequestCost) {
     .map((r) => Number(r.headers && r.headers['retry-after']))
     .filter((n) => Number.isFinite(n))
 
+  const succeeded = done.filter((r) => r.status === 200).length
+  const notSucceeded = done.filter((r) => r.status !== 200)
+
+  // One line per reason, biggest group first.
+  const grouped = new Map()
+  for (const r of notSucceeded) {
+    const reason = reasonFor(r)
+    const key = r.transportError ? 'transport' : String(r.status)
+    const entry = grouped.get(key) || { status: r.transportError ? null : r.status, reason, count: 0 }
+    entry.count += 1
+    grouped.set(key, entry)
+  }
+  const failures = [...grouped.values()].sort((a, b) => b.count - a.count)
+
+  const avgMs = durations.length
+    ? Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length)
+    : 0
+
   return {
+    requested: requested ?? done.length,
     sent: done.length,
+    succeeded,
+    failed: notSucceeded.length,
+    failures,
+    avgMs,
     byStatus,
     billed,
     credits: billed * perRequestCost,

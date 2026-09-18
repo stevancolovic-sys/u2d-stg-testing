@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickProfile, scheduleDelays, percentile, summarise } from '../public/js/burst.js'
+import { pickProfile, scheduleDelays, percentile, summarise, reasonFor } from '../public/js/burst.js'
 
 describe('pickProfile', () => {
   it('cycles the list so a short list answers a long run', () => {
@@ -61,6 +61,40 @@ describe('summarise', () => {
     { seq: 5, transportError: 'network down', startedAt: 250, finishedAt: 260 },
   ]
 
+  it('reports how many were asked for against how many went out', () => {
+    const s = summarise(run, 2, 20)
+    expect(s.requested).toBe(20)
+    expect(s.sent).toBe(6)
+  })
+
+  it('falls back to what was sent when no total was given', () => {
+    expect(summarise(run, 2).requested).toBe(6)
+  })
+
+  it('splits succeeded from not, and 404 does not count as success', () => {
+    const s = summarise(run, 2, 6)
+    expect(s.succeeded).toBe(2)
+    expect(s.failed).toBe(4)
+    expect(s.succeeded + s.failed).toBe(s.sent)
+  })
+
+  it('says why each group failed, biggest group first', () => {
+    const s = summarise(run, 2, 6)
+    expect(s.failures[0]).toEqual({
+      status: 429,
+      reason: 'rate limited by the team\u2019s shared window',
+      count: 2,
+    })
+    expect(s.failures.map((f) => f.count)).toEqual([2, 1, 1])
+    expect(s.failures.find((f) => f.status === 404).reason).toContain('still billed')
+    expect(s.failures.find((f) => f.status === null).reason).toContain('never reached the API')
+  })
+
+  it('reports the mean duration alongside the percentiles', () => {
+    // durations: 100, 250, 160, 50, 40, 10 — mean 101.67 -> 102
+    expect(summarise(run, 2, 6).avgMs).toBe(102)
+  })
+
   it('counts every status, transport failures included', () => {
     const s = summarise(run, 2)
     expect(s.sent).toBe(6)
@@ -119,8 +153,29 @@ describe('summarise', () => {
   it('says nothing happened for an empty run', () => {
     const s = summarise([], 2)
     expect(s.sent).toBe(0)
+    expect(s.succeeded).toBe(0)
+    expect(s.failed).toBe(0)
+    expect(s.failures).toEqual([])
+    expect(s.avgMs).toBe(0)
     expect(s.credits).toBe(0)
     expect(s.firstRateLimitAfterMs).toBe(null)
     expect(s.retryAfterSeconds).toBe(null)
+  })
+})
+
+describe('reasonFor', () => {
+  it('explains the statuses the API documents', () => {
+    expect(reasonFor({ status: 200 })).toBe('enriched')
+    expect(reasonFor({ status: 403 })).toContain('not enough credits')
+    expect(reasonFor({ status: 503 })).toContain('retry later')
+    expect(reasonFor({ status: 401 })).toContain('expired')
+  })
+
+  it('names a transport failure as one', () => {
+    expect(reasonFor({ transportError: 'failed to fetch' })).toContain('never reached the API')
+  })
+
+  it('does not pretend to know an unfamiliar status', () => {
+    expect(reasonFor({ status: 418 })).toBe('unexpected status 418')
   })
 })

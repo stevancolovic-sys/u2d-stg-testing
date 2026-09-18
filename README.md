@@ -158,11 +158,22 @@ own callback `type` (`ActivityComments`, `ActivityReactions`) and their own
 ## Burst
 
 The two live endpoints get a **Burst** tab: paste a few targets, say how many
-requests and at what rate, and the console fires them and reports what came
-back — status counts, throughput, p50/p95 latency, when the first 429 arrived
-and what `Retry-After` asked for. The target list cycles, so five slugs can
-answer twenty requests; different slugs matter, since repeating one can
-measure a cache rather than the work.
+requests and at what rate, and the console fires them and reports:
+
+- **sent of N** — how many went out against how many were asked for
+- **succeeded / did not** — a 404 counts as "did not": the request worked,
+  the record does not exist
+- **why the rest did not** — one line per reason in the API's own terms
+  (rate limited, not enough credits, no worker free within 10s, token
+  expired, never reached the API), biggest group first
+- **per second** — requests completed across the run
+- **average each**, and **p50 / p95**
+- **all of them took** — wall clock from first request to last response
+- **credits spent** — 200 and 404 only; a 429 is free
+- when the first 429 arrived and what `Retry-After` asked for
+
+The target list cycles, so five slugs can answer twenty requests; different
+slugs matter, since repeating one can measure a cache rather than the work.
 
 Credits are only spent on requests the API answers about a record (200 or
 404). A 429 is free, so overshooting the limit is cheap — and the overshoot

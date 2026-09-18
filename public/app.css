@@ -508,3 +508,18 @@ select.input { font-family: var(--sans); }
 .status-cell.ok { color: var(--teal); }
 .status-cell.limited { color: var(--brass); }
 .status-cell.other { color: var(--alarm); }
+
+.stats-minor { margin-top: 16px; }
+.stats-minor .stat-value { font-size: 15px; color: var(--muted); }
+
+.stat-value.ok { color: var(--teal); }
+.stat-value.bad { color: var(--alarm); }
+
+.failure {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline;
+  padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.failure .limited { color: var(--brass); }
+.failure .other { color: var(--alarm); }
+.failure-count { color: var(--muted); font-size: 12.5px; }
+.failure-why { color: var(--muted); flex: 1 1 320px; }

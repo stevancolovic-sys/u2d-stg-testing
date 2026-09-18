@@ -113,32 +113,47 @@ export function renderBurst(container, endpoint, state, getToken) {
     summaryBox.textContent = ''
     if (!results.some((r) => r.finishedAt !== undefined)) return
 
-    const s = summarise(results, perRequestCost(endpoint, state))
+    const s = summarise(results, perRequestCost(endpoint, state), Number(count.value) || undefined)
 
-    const stat = (label, value) => {
+    const stat = (label, value, tone) => {
       const cell = el('div', 'stat')
-      cell.append(el('span', 'stat-value', String(value)))
+      const v = el('span', 'stat-value', String(value))
+      if (tone) v.classList.add(tone)
+      cell.append(v)
       cell.append(el('span', 'stat-label', label))
       return cell
     }
 
+    const seconds = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`)
+
     const grid = el('div', 'stats')
-    grid.append(stat('sent', s.sent))
-    grid.append(stat('rate limited', s.rateLimited))
-    grid.append(stat('credits spent', s.credits))
+    grid.append(stat('sent of ' + s.requested, s.sent))
+    grid.append(stat('succeeded', s.succeeded, s.succeeded ? 'ok' : null))
+    grid.append(stat('did not', s.failed, s.failed ? 'bad' : null))
     grid.append(stat('per second', s.throughput))
-    grid.append(stat('p50 ms', s.p50))
-    grid.append(stat('p95 ms', s.p95))
+    grid.append(stat('average each', seconds(s.avgMs)))
+    grid.append(stat('all of them took', seconds(s.elapsedMs)))
     summaryBox.append(grid)
 
-    const statuses = el('div', 'burst-statuses')
-    for (const [code, n] of Object.entries(s.byStatus)) {
-      const chip = el('span', 'chip')
-      chip.classList.add(code === '200' ? 'ok' : code === '429' ? 'limited' : 'other')
-      chip.textContent = `${code} × ${n}`
-      statuses.append(chip)
+    const second = el('div', 'stats stats-minor')
+    second.append(stat('p50', seconds(s.p50)))
+    second.append(stat('p95', seconds(s.p95)))
+    second.append(stat('credits spent', s.credits))
+    summaryBox.append(second)
+
+    if (s.failures.length) {
+      summaryBox.append(el('div', 'label', 'Why the rest did not succeed'))
+      for (const f of s.failures) {
+        const row = el('div', 'failure')
+        const code = el('span', 'mono')
+        code.classList.add(f.status === 429 ? 'limited' : 'other')
+        code.textContent = f.status === null ? 'transport' : String(f.status)
+        row.append(code)
+        row.append(el('span', 'failure-count mono', `× ${f.count}`))
+        row.append(el('span', 'failure-why', f.reason))
+        summaryBox.append(row)
+      }
     }
-    summaryBox.append(statuses)
 
     if (!s.sawRateLimitHeaders) {
       summaryBox.append(
@@ -272,7 +287,7 @@ export function renderBurst(container, endpoint, state, getToken) {
         ranAt: new Date().toISOString(),
         requested: Number(count.value),
         ratePerSecond: Number(rate.value),
-        summary: summarise(results, perRequestCost(endpoint, state)),
+        summary: summarise(results, perRequestCost(endpoint, state), Number(count.value) || undefined),
         requests: results,
       },
       ['burst', endpoint.id]
