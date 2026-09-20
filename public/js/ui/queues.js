@@ -26,6 +26,7 @@ const el = (tag, className, text) => {
 
 const timers = new Map()
 const cards = new Map()
+const counting = new Set()
 let queues = []
 let container = null
 let ctx = { getToken: () => null }
@@ -74,8 +75,11 @@ export function addQueues(ids, meta = {}) {
 // --- polling -------------------------------------------------------------
 
 async function tick(queue) {
+  // The token is fetched from the Worker after the page loads, so the first
+  // tick can easily arrive before it. Skipping a beat is right; stopping is
+  // not — it used to stop for good and the job sat there until a reload.
   const token = ctx.getToken()
-  if (!token) return stopPolling(queue.id)
+  if (!token) return
 
   const result = await callApi({
     endpoint: byId('status'),
@@ -98,15 +102,15 @@ async function tick(queue) {
     stopPolling(queue.id)
   }
 
-  const entry = cards.get(queue.id)
-  if (entry) {
-    updateCard(queue, entry)
-    // Count what came back as soon as it is worth counting, once.
-    if (isFinished(queue) && !entry.counted) {
-      entry.counted = true
-      countResults(queue, entry)
-    }
+  // Counting belongs to the job, not to whether its card happens to be on
+  // screen — a job from another day would otherwise never learn its numbers.
+  if (isFinished(queue) && queue.returned === undefined && !counting.has(queue.id)) {
+    counting.add(queue.id)
+    countResults(queue)
   }
+
+  const entry = cards.get(queue.id)
+  if (entry) updateCard(queue, entry)
 }
 
 // Called when the Jobs panel is shown or hidden. Polling only runs while
@@ -119,6 +123,16 @@ export function setJobsVisible(next) {
 
 function watchUnfinished() {
   if (!visible) return
+
+  // Finished before anyone was watching: it never learned how many results
+  // it produced, so count them now rather than leaving a blank.
+  for (const queue of queues.slice(0, WATCH_LIMIT)) {
+    if (isFinished(queue) && queue.returned === undefined && !counting.has(queue.id)) {
+      counting.add(queue.id)
+      countResults(queue)
+    }
+  }
+
   const unfinished = queues.filter((q) => !isFinished(q)).slice(0, WATCH_LIMIT)
   for (const queue of unfinished) startPolling(queue.id)
   // Anything that finished while we were watching can stop.
@@ -153,9 +167,12 @@ function removeQueue(id) {
 
 // How many results exist, which is the only way to tell how many of the
 // enqueued items produced nothing.
-async function countResults(queue, entry) {
+async function countResults(queue) {
   const token = ctx.getToken()
-  if (!token) return
+  if (!token) {
+    counting.delete(queue.id)
+    return
+  }
   const result = await callApi({
     endpoint: byId('list'),
     state: { queueId: { value: queue.id }, page: { value: 0 }, limit: { value: 1 } },
@@ -165,8 +182,10 @@ async function countResults(queue, entry) {
     queue.returned = result.body.total
     if (Number.isFinite(result.body.totalResults)) queue.totalResults = result.body.totalResults
     save()
-    updateCard(queue, entry)
+    const entry = cards.get(queue.id)
+    if (entry) updateCard(queue, entry)
   }
+  counting.delete(queue.id)
 }
 
 function hideResults(entry) {

@@ -9,7 +9,7 @@ import { initialState, renderFields } from './ui/form.js'
 import { renderResponse } from './ui/response.js'
 import { renderResults } from './ui/results.js'
 import { renderBurst } from './ui/burst.js'
-import { mountQueues, addQueues, setJobsVisible } from './ui/queues.js'
+import { mountQueues, addQueues, setJobsVisible, render as renderQueues } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
 import { mountLinks } from './ui/links.js'
 import { mountKeys, onKeysChanged, knownKeys } from './ui/keys.js'
@@ -549,4 +549,7 @@ ensureToken().then(() => {
   tokenReady = Boolean(token)
   keyMissing = !token
   if (where.kind === 'job') draw()
+  // Ticks that ran before the token arrived did nothing; nudge them now.
+  setJobsVisible(where.kind === 'panel' && where.id === 'jobs')
+  renderQueues()
 })
