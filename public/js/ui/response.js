@@ -2,6 +2,7 @@
 // Every value arrives from the network, so it goes in via textContent.
 
 import { downloadJson, copyJson } from '../download.js'
+import { classifyTransportFailure } from '../diagnose.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -51,10 +52,14 @@ export function renderResponse(container, result, name) {
   container.textContent = ''
 
   if (result.transportError) {
+    const verdict = classifyTransportFailure({
+      elapsedMs: result.elapsedMs,
+      probeOk: result.probeOk,
+    })
     const box = el('div', 'result bad')
-    box.append(el('div', 'result-head', 'Request never reached the API'))
-    box.append(el('p', 'hint', result.transportError))
-    box.append(el('p', 'hint', 'Usually a network drop or a blocked request — not an API error.'))
+    box.append(el('div', 'result-head', verdict.headline))
+    box.append(el('p', 'hint', verdict.detail))
+    box.append(el('p', 'hint mono', result.transportError))
     container.append(box)
     return
   }

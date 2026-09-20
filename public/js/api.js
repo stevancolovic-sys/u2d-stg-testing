@@ -10,6 +10,25 @@ export function resolveUrl(endpoint, state) {
   return url
 }
 
+// Free, fast, and needs nothing but a token: any HTTP answer at all proves
+// the API is reachable, even a rejection. Used to tell a server failure apart
+// from being offline, which a browser reports identically.
+export async function probeReachable(token, timeoutMs = 12000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    await fetch(`${getBase()}/open-refresh/status?queueId=reachability-probe`, {
+      headers: token ? { Authorization: token } : {},
+      signal: controller.signal,
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function callApi({ endpoint, state, token, timeoutMs }) {
   const started = performance.now()
   const url = resolveUrl(endpoint, state)

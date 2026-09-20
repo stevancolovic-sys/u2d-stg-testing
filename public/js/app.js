@@ -2,7 +2,7 @@ import { byId } from './endpoints.js'
 import { JOBS, jobById, modeOf, targetField, optionalFields, otherRequiredFields, missingRequired, suggestedName } from './jobs.js'
 import { estimateCredits } from './credits.js'
 import { buildBody, toCurl, parseLines } from './request.js'
-import { callApi, resolveUrl } from './api.js'
+import { callApi, resolveUrl, probeReachable } from './api.js'
 import { runPool } from './burst.js'
 import { PRESETS, getBase, setBase, presetFor } from './config.js'
 import { initialState, renderFields } from './ui/form.js'
@@ -357,8 +357,14 @@ async function run(endpoint, out, send, refresh) {
         state: { ...state, [field.name]: { value: target } },
         token,
       })
-      if (result.ok && result.body) records.push(result.body)
-      else failures.push({ target, result })
+      if (result.ok && result.body) {
+        records.push(result.body)
+      } else {
+        if (result.transportError && failures.length === 0) {
+          result.probeOk = await probeReachable(token)
+        }
+        failures.push({ target, result })
+      }
     })
 
     out.textContent = ''
@@ -385,6 +391,12 @@ async function run(endpoint, out, send, refresh) {
 
   for (const e of endpointsFor()) {
     const result = await callApi({ endpoint: e, state, token })
+    // A browser cannot see the status of a response with no CORS headers, so
+    // ask the API something cheap to find out whether it is up at all.
+    if (result.transportError) {
+      progress.textContent = 'That failed without a status — checking whether the API is up…'
+      result.probeOk = await probeReachable(token)
+    }
     last = result
     if (result.body) {
       queueIds.push(...(result.body.queueId ? [result.body.queueId] : []))
