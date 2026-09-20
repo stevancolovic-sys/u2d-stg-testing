@@ -13,7 +13,7 @@ const el = (tag, className, text) => {
   return node
 }
 
-function downloadCsv(rows, columns, name) {
+export function downloadCsv(rows, columns, name) {
   const csv = toCsv(rows, columns)
   const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')

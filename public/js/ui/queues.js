@@ -11,7 +11,8 @@ import { byId } from '../endpoints.js'
 import { downloadJson } from '../download.js'
 import { isFinished } from '../queue-plan.js'
 import { groupByDay, summariseQueue } from '../queue-stats.js'
-import { renderResults } from './results.js'
+import { renderResults, downloadCsv } from './results.js'
+import { toRows, columnsFor } from '../table.js'
 
 const STORE = 'up2data.queues'
 const PAGE = 25 // the API's ceiling, so a page is as big as it may be
@@ -140,7 +141,15 @@ async function countResults(queue, entry) {
   }
 }
 
+function hideResults(entry) {
+  entry.open = false
+  entry.refs.results.textContent = ''
+  entry.refs.show.textContent = 'Show results'
+}
+
 async function showResults(queue, entry) {
+  entry.open = true
+  entry.refs.show.textContent = 'Hide results'
   const token = ctx.getToken()
   if (!token) return
   const target = entry.refs.results
@@ -173,8 +182,10 @@ async function showResults(queue, entry) {
   }
 }
 
-// Walks from page 0 until a short page comes back, then saves one file.
-async function downloadEverything(queue, btn) {
+// Walks from page 0 until a short page comes back, then saves one file in
+// whichever shape was asked for. CSV is what a spreadsheet wants; JSON keeps
+// the nesting.
+async function downloadEverything(queue, btn, shape = 'json') {
   const token = ctx.getToken()
   if (!token) return
   const label = btn.textContent
@@ -197,7 +208,12 @@ async function downloadEverything(queue, btn) {
       const items = result.body?.items || []
       all.push(...items)
       if (items.length < PAGE) {
-        downloadJson(all, [queue.endpointId, queue.id, 'all'])
+        if (shape === 'csv') {
+          const rows = toRows(all)
+          downloadCsv(rows, columnsFor(rows, 60), [queue.endpointId, queue.id, 'all'])
+        } else {
+          downloadJson(all, [queue.endpointId, queue.id, 'all'])
+        }
         btn.textContent = `Saved ${all.length}`
         break
       }
@@ -234,15 +250,21 @@ function buildCard(queue) {
 
   const actions = el('div', 'row-actions')
   refs.show = el('button', 'btn-ghost', 'Show results')
-  refs.show.addEventListener('click', () => showResults(queue, entry))
+  refs.show.addEventListener('click', () => {
+    if (entry.open) return hideResults(entry)
+    showResults(queue, entry)
+  })
 
-  const saveAll = el('button', 'btn-ghost', 'Download every page')
-  saveAll.addEventListener('click', () => downloadEverything(queue, saveAll))
+  const saveCsv = el('button', 'btn-ghost', 'Download all as CSV')
+  saveCsv.addEventListener('click', () => downloadEverything(queue, saveCsv, 'csv'))
+
+  const saveAll = el('button', 'btn-ghost', 'Download all as JSON')
+  saveAll.addEventListener('click', () => downloadEverything(queue, saveAll, 'json'))
 
   const forget = el('button', 'btn-ghost danger', 'Forget')
   forget.addEventListener('click', () => removeQueue(queue.id))
 
-  actions.append(refs.show, saveAll, forget)
+  actions.append(refs.show, saveCsv, saveAll, forget)
   refs.results = el('div', 'queue-results')
   card.append(actions, refs.results)
 
@@ -291,6 +313,7 @@ function updateCard(queue, entry) {
   for (const line of lines) refs.why.append(el('p', 'hint', line))
 
   refs.show.disabled = !isFinished(queue) && !s.processed
+  refs.show.textContent = entry.open ? 'Hide results' : 'Show results'
 }
 
 // --- the panel -----------------------------------------------------------
