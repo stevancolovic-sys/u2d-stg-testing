@@ -150,3 +150,37 @@ export function targetField(endpoint) {
 export function optionalFields(endpoint) {
   return endpoint.fields.filter((f) => !f.required && !f.uiOnly)
 }
+
+// Required fields other than the one the job asks its question about — name
+// and priority, mostly. They were rendered nowhere, so `name` went out empty
+// and the API refused the queue.
+export function otherRequiredFields(endpoint) {
+  const target = targetField(endpoint)
+  return endpoint.fields.filter((f) => f.required && !f.uiOnly && f !== target)
+}
+
+const isEmpty = (field, entry) => {
+  const value = entry ? entry.value : undefined
+  if (field.type === 'links') return !(value || []).some((row) => String(row.url || '').trim())
+  if (Array.isArray(value)) return value.length === 0
+  return String(value ?? '').trim() === ''
+}
+
+// What still has to be filled in before a request is worth sending. Checking
+// here means the console never spends a round trip learning what it knew.
+export function missingRequired(endpoint, state) {
+  return endpoint.fields
+    .filter((f) => f.required && !f.uiOnly && isEmpty(f, state[f.name]))
+    .map((f) => f.name)
+}
+
+// A queue with no name is refused, and nobody wants to invent one. This is
+// what the field starts as, and it stays editable.
+// Written out rather than left to toLocaleDateString, whose month
+// abbreviations differ between ICU builds — "20 Sep" in one browser and
+// "20 Sept" in another is not a difference a queue name should carry.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+export function suggestedName(job, now = new Date()) {
+  return `${job.title} — ${now.getDate()} ${MONTHS[now.getMonth()]}`
+}

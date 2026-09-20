@@ -1,5 +1,5 @@
 import { byId } from './endpoints.js'
-import { JOBS, jobById, modeOf, targetField, optionalFields } from './jobs.js'
+import { JOBS, jobById, modeOf, targetField, optionalFields, otherRequiredFields, missingRequired, suggestedName } from './jobs.js'
 import { estimateCredits } from './credits.js'
 import { buildBody, toCurl, parseLines } from './request.js'
 import { callApi, resolveUrl } from './api.js'
@@ -155,6 +155,11 @@ function selectJob(id, modeId) {
   mode = modeOf(job, modeId || localStorage.getItem(`up2data.mode.${job.id}`) || job.modes[0].id)
   localStorage.setItem(`up2data.mode.${job.id}`, mode.id)
   state = loadState(byId(mode.endpoint), job.id, mode.id)
+
+  if (state.name && !String(state.name.value || '').trim()) {
+    state.name.value = suggestedName(job)
+  }
+
   draw()
 }
 
@@ -216,6 +221,9 @@ function draw() {
   const shown = [targetField(endpoint)].filter(Boolean)
   const listsField = endpoint.fields.find((f) => f.type === 'lists')
   if (mode.lists && listsField) shown.push(listsField)
+  // name and priority are required too; leaving them unrendered sent an empty
+  // name and the API refused the queue.
+  shown.push(...otherRequiredFields(endpoint))
   renderFields(fields, shown, state, onChange)
 
   // --- step 3: options ---
@@ -285,7 +293,14 @@ function draw() {
       meter.append(el('span', 'meter-note', n ? 'Nothing to spend.' : 'Add at least one above.'))
     }
 
-    const blocked = !getToken() ? 'Sign in first.' : !n ? 'Nothing to send yet.' : !route.length ? 'Pick at least one list.' : ''
+    const missing = missingRequired(endpoint, state)
+    const blocked = !getToken()
+      ? 'Sign in first.'
+      : !route.length
+        ? 'Pick at least one list.'
+        : missing.length
+          ? `Still needed: ${missing.join(', ')}.`
+          : ''
     send.disabled = Boolean(blocked)
     note.textContent = blocked
     send.textContent = mode.oneAtATime && n > 1 ? `Send ${n}, one at a time` : 'Send'

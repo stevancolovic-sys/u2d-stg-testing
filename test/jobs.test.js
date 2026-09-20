@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { JOBS, jobById, modeOf, targetField, optionalFields } from '../public/js/jobs.js'
+import { JOBS, jobById, modeOf, targetField, optionalFields, otherRequiredFields, missingRequired, suggestedName } from '../public/js/jobs.js'
 import { byId, ENDPOINTS } from '../public/js/endpoints.js'
 
 describe('jobs', () => {
@@ -84,6 +84,81 @@ describe('targetField', () => {
         expect(targetField(byId(mode.endpoint)), `${job.id}/${mode.id}`).toBeTruthy()
       }
     }
+  })
+})
+
+describe('otherRequiredFields', () => {
+  it('returns the required fields a job does not ask about, so they get rendered', () => {
+    const names = otherRequiredFields(byId('profiles-bulk')).map((f) => f.name)
+    expect(names).toEqual(['name', 'priority'])
+  })
+
+  it('never includes the target itself', () => {
+    for (const job of JOBS) {
+      for (const mode of job.modes) {
+        const e = byId(mode.endpoint)
+        const target = targetField(e)
+        expect(otherRequiredFields(e).map((f) => f.name), `${job.id}/${mode.id}`).not.toContain(target.name)
+      }
+    }
+  })
+
+  it('leaves every required field reachable somewhere in the UI', () => {
+    for (const job of JOBS) {
+      for (const mode of job.modes) {
+        const e = byId(mode.endpoint)
+        const rendered = new Set([
+          targetField(e).name,
+          ...otherRequiredFields(e).map((f) => f.name),
+          ...optionalFields(e).map((f) => f.name),
+        ])
+        for (const field of e.fields) {
+          if (field.uiOnly) continue
+          expect(rendered.has(field.name), `${job.id}/${mode.id} drops ${field.name}`).toBe(true)
+        }
+      }
+    }
+  })
+})
+
+describe('missingRequired', () => {
+  it('catches the empty name that made the API refuse the queue', () => {
+    const state = { name: { value: '' }, profiles: { value: 'a' }, priority: { value: 2 } }
+    expect(missingRequired(byId('profiles-bulk'), state)).toEqual(['name'])
+  })
+
+  it('is happy when everything required is filled in', () => {
+    const state = { name: { value: 'Q1' }, profiles: { value: 'a' }, priority: { value: 2 } }
+    expect(missingRequired(byId('profiles-bulk'), state)).toEqual([])
+  })
+
+  it('treats whitespace as empty', () => {
+    const state = { name: { value: '   ' }, profiles: { value: 'a' }, priority: { value: 2 } }
+    expect(missingRequired(byId('profiles-bulk'), state)).toEqual(['name'])
+  })
+
+  it('counts a links field with no url as missing', () => {
+    const state = {
+      name: { value: 'S' },
+      priority: { value: 2 },
+      salesNavigatorLinks: { value: [{ url: '  ', limitEnabled: false }] },
+    }
+    expect(missingRequired(byId('search'), state)).toEqual(['salesNavigatorLinks'])
+  })
+
+  it('ignores optional fields however empty they are', () => {
+    const state = { name: { value: 'Q1' }, profiles: { value: 'a' }, priority: { value: 2 }, webhookTags: { value: '' } }
+    expect(missingRequired(byId('profiles-bulk'), state)).toEqual([])
+  })
+
+  it('reports everything missing at once, not one at a time', () => {
+    expect(missingRequired(byId('profiles-bulk'), {}).sort()).toEqual(['name', 'priority', 'profiles'])
+  })
+})
+
+describe('suggestedName', () => {
+  it('names a queue after the job and the day, so it is never empty', () => {
+    expect(suggestedName(jobById('people'), new Date(2026, 8, 20))).toBe('People — 20 Sep')
   })
 })
 
