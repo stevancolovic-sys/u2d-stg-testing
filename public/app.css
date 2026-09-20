@@ -723,3 +723,55 @@ table.results tr:hover td { background: var(--panel); }
 
 .choice-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
 .choice-path { color: var(--muted); font-size: 11px; }
+
+
+/* ---- jobs: days on the left, that day's jobs on the right ---- */
+
+.jobs-layout {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+
+.day-rail {
+  position: sticky;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.day {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  background: none;
+  color: var(--muted);
+  font: 500 13px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+.day:hover { background: var(--panel); color: var(--text); }
+.day.on { border-left-color: var(--brass); background: var(--raised); color: #fff; }
+.day:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+.day-count { font: 400 11.5px var(--mono); color: var(--muted); }
+.day.on .day-count { color: var(--brass); }
+
+.day-jobs { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.queue-name { color: #fff; font-weight: 500; font-size: 14px; }
+.queue-why:not(:empty) { margin-top: 10px; }
+.queue-why .hint { margin-top: 4px; }
+
+@media (max-width: 760px) {
+  .jobs-layout { grid-template-columns: 1fr; gap: 14px; }
+  .day-rail { position: static; flex-direction: row; flex-wrap: wrap; }
+  .day { border-left: 0; border-bottom: 2px solid transparent; border-radius: 4px; }
+  .day.on { border-left-color: transparent; border-bottom-color: var(--brass); }
+}

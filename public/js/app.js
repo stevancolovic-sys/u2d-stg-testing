@@ -409,7 +409,17 @@ async function run(endpoint, out, send, refresh) {
   refresh()
 
   if (queueIds.length) {
-    addQueues(queueIds, { endpointId: endpoint.id, name: state.name?.value || job.title })
+    const said = last?.body || {}
+    addQueues(queueIds, {
+      endpointId: endpoint.id,
+      name: state.name?.value || job.title,
+      // What the API reported when it took the job: what it kept, what it
+      // dropped and why. Nowhere else to get it once the response is gone.
+      submitted: targetCount(),
+      enqueued: said.enqueued,
+      skipped: said.skipped,
+      webhooks: said.webhooks,
+    })
     const hooks = last?.body?.webhooks
     const line = el('p', 'sent-ok')
     line.textContent =
