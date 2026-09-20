@@ -30,6 +30,12 @@ let queues = []
 let container = null
 let ctx = { getToken: () => null }
 let activeDay = null
+let visible = false
+
+// Watching everything ever sent would be a poll storm on a long history.
+// Unfinished jobs are the only ones whose numbers can still change, and the
+// newest handful are the only ones anyone is waiting on.
+const WATCH_LIMIT = 12
 
 function load() {
   try {
@@ -83,7 +89,10 @@ async function tick(queue) {
     queue.total = result.body.total ?? 0
     if (isFinished(queue) && !queue.finishedAt) queue.finishedAt = new Date().toISOString()
     save()
-    if (isFinished(queue)) stopPolling(queue.id)
+    if (isFinished(queue)) {
+      stopPolling(queue.id)
+      watchUnfinished()
+    }
   } else if (result.transportError || !result.ok) {
     queue.error = result.transportError || `status ${result.status}`
     stopPolling(queue.id)
@@ -97,6 +106,25 @@ async function tick(queue) {
       entry.counted = true
       countResults(queue, entry)
     }
+  }
+}
+
+// Called when the Jobs panel is shown or hidden. Polling only runs while
+// someone is looking: an open tab should not keep asking forever.
+export function setJobsVisible(next) {
+  visible = next
+  if (visible) watchUnfinished()
+  else for (const id of [...timers.keys()]) stopPolling(id)
+}
+
+function watchUnfinished() {
+  if (!visible) return
+  const unfinished = queues.filter((q) => !isFinished(q)).slice(0, WATCH_LIMIT)
+  for (const queue of unfinished) startPolling(queue.id)
+  // Anything that finished while we were watching can stop.
+  for (const id of [...timers.keys()]) {
+    const queue = queues.find((q) => q.id === id)
+    if (!queue || isFinished(queue)) stopPolling(id)
   }
 }
 
@@ -296,7 +324,7 @@ function updateCard(queue, entry) {
   } else {
     refs.stats.append(stat('done', `${s.processed}/${queue.total || s.enqueued}`))
   }
-  refs.stats.append(stat(s.finished ? 'took' : 'running for', s.duration))
+  refs.stats.append(stat(s.finished ? 'took' : 'running for', s.duration, s.finished ? null : 'live'))
   if (s.finished && s.perItemMs) refs.stats.append(stat('each', `${(s.perItemMs / 1000).toFixed(1)}s`))
 
   refs.why.textContent = ''
@@ -309,7 +337,9 @@ function updateCard(queue, entry) {
     )
   }
   if (queue.error) lines.push(queue.error)
-  if (!s.finished && !timers.has(queue.id)) lines.push('Not being watched. It keeps running on their side.')
+  if (!s.finished && !timers.has(queue.id)) {
+    lines.push('Not being watched — too many jobs are still running. It carries on regardless.')
+  }
   for (const line of lines) refs.why.append(el('p', 'hint', line))
 
   refs.show.disabled = !isFinished(queue) && !s.processed
@@ -364,4 +394,13 @@ export function mountQueues(node, context) {
   ctx = { ...ctx, ...context }
   load()
   render()
+
+  // The clock on a running job moves between polls, so tick it on its own.
+  setInterval(() => {
+    if (!visible) return
+    for (const queue of queues) {
+      const entry = cards.get(queue.id)
+      if (entry && !isFinished(queue)) updateCard(queue, entry)
+    }
+  }, 1000)
 }

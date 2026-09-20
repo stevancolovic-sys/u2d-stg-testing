@@ -9,7 +9,7 @@ import { initialState, renderFields } from './ui/form.js'
 import { renderResponse } from './ui/response.js'
 import { renderResults } from './ui/results.js'
 import { renderBurst } from './ui/burst.js'
-import { mountQueues, addQueues } from './ui/queues.js'
+import { mountQueues, addQueues, setJobsVisible } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
 import { mountLinks } from './ui/links.js'
 import { mountKeys, onKeysChanged, knownKeys } from './ui/keys.js'
@@ -119,6 +119,10 @@ function go(next) {
 
   $('#job').hidden = where.kind !== 'job'
   for (const p of PANELS) $(`#${p.node}`).hidden = !(where.kind === 'panel' && where.id === p.id)
+
+  // Jobs update themselves while you are looking at them, and stop when you
+  // are not — an open tab should not poll forever.
+  setJobsVisible(where.kind === 'panel' && where.id === 'jobs')
 
   if (where.kind === 'job') selectJob(where.id)
 }

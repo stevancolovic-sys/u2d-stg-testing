@@ -801,3 +801,18 @@ table.results tr:hover td { background: var(--panel); }
 
 .key-entry { display: flex; flex-wrap: wrap; gap: 8px; }
 .key-entry .input { flex: 1 1 260px; min-width: 0; }
+
+/* A running job's clock, so it reads as moving rather than stale. */
+.stat-value.live { color: var(--brass); }
+.stat-value.live::after {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--brass);
+  vertical-align: middle;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.25 } }
+@media (prefers-reduced-motion: reduce) { .stat-value.live::after { animation: none } }
