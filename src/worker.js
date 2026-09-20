@@ -184,6 +184,19 @@ export class LinkStore {
 
 const DEFAULT_DOMAIN = 'totema.co'
 
+// The two APIs a key can belong to. A key is issued for one of them, so they
+// are stored apart — a staging key sent to production is simply refused.
+const API_BASES = {
+  staging: 'https://api.staging.uptodata.io/api',
+  production: 'https://api.uptodata.io/api',
+}
+
+// Enough to recognise a key, not enough to use one.
+const hintOf = (key) => {
+  const k = String(key || '')
+  return k.length <= 10 ? '•'.repeat(k.length) : `${k.slice(0, 4)}…${k.slice(-4)}`
+}
+
 // Google matches the redirect URI character for character against what the
 // OAuth client lists, so the path has to be whatever was registered there.
 // /auth/callback is the tidy one; OAUTH_REDIRECT_PATH covers a client that
@@ -383,6 +396,96 @@ async function gate(request, env, url) {
   )
 }
 
+// One store per signed-in person, so a key belongs to whoever saved it and
+// cannot be read by anyone else. The key itself never leaves the Worker: the
+// browser asks for a token and gets a token.
+export class KeyStore {
+  constructor(ctx) {
+    this.ctx = ctx
+    this.sql = ctx.storage.sql
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS keys (
+      environment TEXT PRIMARY KEY,
+      api_key TEXT NOT NULL,
+      saved_ms INTEGER NOT NULL
+    )`)
+  }
+
+  list() {
+    const rows = this.sql.exec('SELECT environment, api_key, saved_ms FROM keys').toArray()
+    const out = {}
+    for (const env of Object.keys(API_BASES)) out[env] = { set: false }
+    for (const row of rows) {
+      out[row.environment] = {
+        set: true,
+        hint: hintOf(row.api_key),
+        savedAt: new Date(row.saved_ms).toISOString(),
+      }
+    }
+    return out
+  }
+
+  keyFor(environment) {
+    const row = this.sql.exec('SELECT api_key FROM keys WHERE environment = ?', environment).toArray()[0]
+    return row ? row.api_key : null
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url)
+
+    if (request.method === 'GET') return json({ keys: this.list() })
+
+    if (request.method === 'PUT') {
+      const body = await request.json().catch(() => null)
+      const environment = body && body.environment
+      const apiKey = body && typeof body.apiKey === 'string' ? body.apiKey.trim() : ''
+      if (!API_BASES[environment]) return json({ error: 'Unknown environment' }, 400)
+      if (!apiKey) return json({ error: 'No key given' }, 400)
+      this.sql.exec(
+        `INSERT INTO keys (environment, api_key, saved_ms) VALUES (?, ?, ?)
+         ON CONFLICT(environment) DO UPDATE SET api_key = excluded.api_key, saved_ms = excluded.saved_ms`,
+        environment,
+        apiKey,
+        Date.now()
+      )
+      return json({ keys: this.list() })
+    }
+
+    if (request.method === 'DELETE') {
+      const environment = url.searchParams.get('environment')
+      if (environment) this.sql.exec('DELETE FROM keys WHERE environment = ?', environment)
+      else this.sql.exec('DELETE FROM keys')
+      return json({ keys: this.list() })
+    }
+
+    // Mint a token from the stored key. The key stays here.
+    if (request.method === 'POST') {
+      const body = await request.json().catch(() => null)
+      const environment = (body && body.environment) || 'staging'
+      const base = API_BASES[environment]
+      if (!base) return json({ error: 'Unknown environment' }, 400)
+
+      const apiKey = this.keyFor(environment)
+      if (!apiKey) return json({ error: 'no_key', environment }, 404)
+
+      const res = await fetch(`${base}/api-auth/authenticate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      }).catch(() => null)
+
+      if (!res) return json({ error: 'The API could not be reached' }, 502)
+
+      const answer = await res.json().catch(() => null)
+      if (!res.ok || !answer || !answer.accessToken) {
+        return json({ error: 'rejected', status: res.status }, res.status === 401 ? 401 : 502)
+      }
+      return json({ accessToken: answer.accessToken, environment })
+    }
+
+    return json({ error: 'Not found' }, 404)
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -413,7 +516,7 @@ export default {
     if (parts[0] === 'hook' && parts[1] && request.method === 'POST' && !parts[2]) {
       return store(parts[1])
     }
-    if (request.method === 'POST' && parts[0] !== 'auth' && parts[0] !== 'links') {
+    if (request.method === 'POST' && !['auth', 'links', 'keys'].includes(parts[0])) {
       return store(DEFAULT_HOOK)
     }
 
@@ -426,6 +529,24 @@ export default {
     // --- everything past here needs a session
     const refused = await gate(request, env, url)
     if (refused) return refused
+
+    if (parts[0] === 'keys' && (!parts[1] || parts[1] === 'token')) {
+      const session = await verifySession(
+        parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
+        authConfig(env).secret
+      )
+      // The gate above already refused anyone without a session.
+      const stub = env.KEYS.get(env.KEYS.idFromName(session.email))
+      const inner = parts[1] === 'token' ? 'https://do/token' : `https://do/${url.search}`
+      const method = parts[1] === 'token' ? 'POST' : request.method
+      return stub.fetch(
+        new Request(inner, {
+          method,
+          headers: request.headers,
+          body: method === 'GET' || method === 'DELETE' ? undefined : request.body,
+        })
+      )
+    }
 
     if (parts[0] === 'links' && !parts[1]) {
       const stub = env.LINKS.get(env.LINKS.idFromName('links'))

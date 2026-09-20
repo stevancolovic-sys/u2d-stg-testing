@@ -12,8 +12,9 @@ import { renderBurst } from './ui/burst.js'
 import { mountQueues, addQueues } from './ui/queues.js'
 import { mountWebhooks } from './ui/webhooks.js'
 import { mountLinks } from './ui/links.js'
+import { mountKeys, onKeysChanged, knownKeys } from './ui/keys.js'
+import { tokenFor, freshToken, clearToken, currentEnvironment, environmentLabel } from './keys.js'
 
-const TOKEN_KEY = 'up2data.auth'
 const WHERE_KEY = 'up2data.where'
 const stateKey = (jobId, modeId) => `up2data.job.${jobId}.${modeId}`
 const $ = (sel) => document.querySelector(sel)
@@ -30,59 +31,50 @@ const PANELS = [
   { id: 'callbacks', label: 'Callbacks', node: 'panel-callbacks' },
   { id: 'links', label: 'Saved links', node: 'panel-links' },
   { id: 'burst', label: 'Load test', node: 'panel-burst' },
+  { id: 'keys', label: 'API keys', node: 'panel-keys' },
 ]
 
 let where = { kind: 'job', id: JOBS[0].id }
+let tokenReady = false
+let keyMissing = false
 let job = null
 let mode = null
 let state = {}
 
-// --- credentials ---------------------------------------------------------
+// --- the API key --------------------------------------------------------
 
-const readAuth = () => {
-  try {
-    return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null')
-  } catch {
-    return null
-  }
+// Held by the Worker against this account. A token is minted from it on
+// demand, so nothing here ever holds the key and nothing expires in a way
+// anyone has to think about.
+let token = null
+
+async function ensureToken() {
+  if (token) return token
+  token = await tokenFor()
+  return token
 }
-const writeAuth = (auth) => localStorage.setItem(TOKEN_KEY, JSON.stringify(auth))
-const getToken = () => readAuth()?.token || null
 
-function renderAuth() {
-  const auth = readAuth()
-  const status = $('#auth-status')
-  const keyInput = $('#api-key')
-  if (auth?.apiKey && !keyInput.value) keyInput.value = auth.apiKey
+// Used by panels that make their own calls.
+const getToken = () => token
 
-  if (!auth?.token) {
-    status.textContent = 'Not signed in — paste an API key to start.'
-    status.className = 'auth-status'
-  } else {
-    status.textContent = 'Signed in'
+function renderKeyStatus() {
+  const status = $('#key-status')
+  const environment = currentEnvironment()
+
+  if (!environment) {
+    status.textContent = 'Custom API — no saved key for this address'
+    status.className = 'auth-status expired'
+    return
+  }
+
+  const keys = knownKeys()
+  const state = keys && keys[environment]
+
+  if (state && state.set) {
+    status.textContent = `${environmentLabel(environment)} key ${state.hint}`
     status.className = 'auth-status live'
-  }
-  if (where.kind === 'job') draw()
-}
-
-async function authenticate() {
-  const apiKey = $('#api-key').value.trim()
-  if (!apiKey) return
-  const btn = $('#auth-btn')
-  btn.disabled = true
-  btn.textContent = 'Signing in…'
-
-  const result = await callApi({ endpoint: byId('authenticate'), state: { apiKey: { value: apiKey } }, token: null })
-
-  btn.disabled = false
-  btn.textContent = 'Sign in'
-
-  if (result.body?.accessToken) {
-    writeAuth({ apiKey, token: result.body.accessToken, issuedAt: new Date().toISOString() })
-    renderAuth()
-  } else {
-    const status = $('#auth-status')
-    status.textContent = result.transportError || `Could not sign in (${result.status})`
+  } else if (keys) {
+    status.textContent = `No ${environmentLabel(environment).toLowerCase()} key — add one under API keys`
     status.className = 'auth-status expired'
   }
 }
@@ -294,8 +286,10 @@ function draw() {
     }
 
     const missing = missingRequired(endpoint, state)
-    const blocked = !getToken()
-      ? 'Sign in first.'
+    const blocked = !tokenReady
+      ? keyMissing
+        ? 'No API key for this environment — add one under API keys.'
+        : 'Getting a token…'
       : !route.length
         ? 'Pick at least one list.'
         : missing.length
@@ -316,6 +310,14 @@ function draw() {
   send.addEventListener('click', () => run(endpoint, out, send, refresh))
   window.__refreshJob = refresh
   refresh()
+
+  // A token is fetched once per environment and reused; the button unlocks
+  // the moment it arrives.
+  ensureToken().then(() => {
+    tokenReady = Boolean(token)
+    keyMissing = !token
+    refresh()
+  })
 }
 
 function onChange() {
@@ -340,7 +342,7 @@ async function run(endpoint, out, send, refresh) {
   const progress = el('p', 'hint', 'Sending…')
   out.append(progress)
 
-  const token = getToken()
+  await ensureToken()
   const field = targetField(endpoint)
 
   // Live endpoints take one record each, so a list becomes a queue of calls —
@@ -352,11 +354,19 @@ async function run(endpoint, out, send, refresh) {
 
     await runPool(targets, 1, async (target, i) => {
       progress.textContent = `Sending ${i + 1} of ${targets.length}…`
-      const result = await callApi({
+      let result = await callApi({
         endpoint,
         state: { ...state, [field.name]: { value: target } },
         token,
       })
+      if (result.status === 401) {
+        token = await freshToken()
+        result = await callApi({
+          endpoint,
+          state: { ...state, [field.name]: { value: target } },
+          token,
+        })
+      }
       if (result.ok && result.body) {
         records.push(result.body)
       } else {
@@ -390,7 +400,12 @@ async function run(endpoint, out, send, refresh) {
   let last = null
 
   for (const e of endpointsFor()) {
-    const result = await callApi({ endpoint: e, state, token })
+    let result = await callApi({ endpoint: e, state, token })
+    // A token lasts a day; if it has gone stale, mint another and try once.
+    if (result.status === 401) {
+      token = await freshToken()
+      result = await callApi({ endpoint: e, state, token })
+    }
     // A browser cannot see the status of a response with no CORS headers, so
     // ask the API something cheap to find out whether it is up at all.
     if (result.transportError) {
@@ -447,7 +462,15 @@ function renderPresets() {
     btn.type = 'button'
     btn.addEventListener('click', () => {
       $('#base-url').value = setBase(preset.url)
+      clearToken()
+      token = null
       renderPresets()
+      renderKeyStatus()
+      ensureToken().then(() => {
+        tokenReady = Boolean(token)
+        keyMissing = !token
+        if (where.kind === 'job') draw()
+      })
       if (where.kind === 'job') draw()
     })
     wrap.append(btn)
@@ -459,7 +482,10 @@ function setupBaseUrl() {
   input.value = getBase()
   input.addEventListener('input', () => {
     setBase(input.value)
+    clearToken()
+    token = null
     renderPresets()
+    renderKeyStatus()
     if (where.kind === 'job') draw()
   })
   renderPresets()
@@ -495,6 +521,15 @@ setupBurst()
 mountQueues($('#queues'), { getToken })
 mountWebhooks($('#webhooks'))
 mountLinks($('#links'))
+mountKeys($('#keys'))
+onKeysChanged(() => {
+  renderKeyStatus()
+  ensureToken().then(() => {
+    tokenReady = Boolean(token)
+    keyMissing = !token
+    if (where.kind === 'job') draw()
+  })
+})
 
 try {
   const saved = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null')
@@ -505,14 +540,9 @@ try {
   /* start at the first job */
 }
 go(where)
-renderAuth()
-
-$('#auth-btn').addEventListener('click', authenticate)
-$('#api-key').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') authenticate()
-})
-$('#clear-auth').addEventListener('click', () => {
-  localStorage.removeItem(TOKEN_KEY)
-  $('#api-key').value = ''
-  renderAuth()
+renderKeyStatus()
+ensureToken().then(() => {
+  tokenReady = Boolean(token)
+  keyMissing = !token
+  if (where.kind === 'job') draw()
 })

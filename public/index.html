@@ -24,10 +24,8 @@
   </div>
 
   <div class="auth">
-    <input id="api-key" class="input" type="password" placeholder="API key" autocomplete="off" spellcheck="false">
-    <button id="auth-btn" class="btn">Sign in</button>
-    <button id="clear-auth" class="btn-ghost danger">Sign out</button>
-    <span id="auth-status" class="auth-status">Not signed in.</span>
+    <span id="key-status" class="auth-status">Checking your API key…</span>
+    <a class="btn-ghost" href="/auth/logout">Sign out</a>
   </div>
 </header>
 
@@ -53,6 +51,12 @@
       <h1>Saved links</h1>
       <p class="lede">The people, companies and searches you keep coming back to.</p>
       <div id="links"></div>
+    </div>
+
+    <div id="panel-keys" class="panel" hidden>
+      <h1>API keys</h1>
+      <p class="lede">One key per API, kept against your account. Saved once, then used for you.</p>
+      <div id="keys"></div>
     </div>
 
     <div id="panel-burst" class="panel" hidden>
