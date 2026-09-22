@@ -121,6 +121,35 @@ describe('otherRequiredFields', () => {
   })
 })
 
+describe('name on queue endpoints', () => {
+  it('is required on every endpoint that creates a queue', () => {
+    // The docs call it optional on the activity and post endpoints; staging
+    // answers 500 "Path `name` is required" when it is left out.
+    const creates = [
+      'profiles-bulk', 'companies-bulk',
+      'activity', 'posts', 'comments', 'reactions',
+      'latest-post', 'post-by-url',
+      'search', 'partial-sales-profiles', 'partial-sales-companies',
+    ]
+    for (const id of creates) {
+      const field = byId(id).fields.find((f) => f.name === 'name')
+      expect(field, `${id} has no name field`).toBeTruthy()
+      expect(field.required, `${id} must treat name as required`).toBe(true)
+    }
+  })
+
+  it('therefore never hides name under Options', () => {
+    for (const job of JOBS) {
+      for (const mode of job.modes) {
+        const e = byId(mode.endpoint)
+        if (!e.fields.some((f) => f.name === 'name')) continue
+        expect(optionalFields(e).map((f) => f.name), `${job.id}/${mode.id}`).not.toContain('name')
+        expect(otherRequiredFields(e).map((f) => f.name), `${job.id}/${mode.id}`).toContain('name')
+      }
+    }
+  })
+})
+
 describe('missingRequired', () => {
   it('catches the empty name that made the API refuse the queue', () => {
     const state = { name: { value: '' }, profiles: { value: 'a' }, priority: { value: 2 } }

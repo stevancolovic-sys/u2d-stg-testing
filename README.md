@@ -240,6 +240,13 @@ The whole run downloads as JSON, one entry per request.
 
 ## Notes
 
+- `name` is documented as optional on `/open-refresh/activity`, `/posts`,
+  `/comments`, `/reactions`, `/latest-post` and `/post-by-url`. It is not:
+  every one of them creates a queue through a model that requires it, and
+  leaving it out answers **500** with `Path \`name\` is required`. Measured
+  against staging on 2026-09-22 with `/post-by-url`. The registry treats it as
+  required everywhere a queue is created, so it is asked for up front rather
+  than hidden under Options.
 - The API's own documentation transposes the curl examples for
   `/open-refresh/posts` and `/open-refresh/latest-post`. The registry follows
   the endpoint descriptions, not those examples.

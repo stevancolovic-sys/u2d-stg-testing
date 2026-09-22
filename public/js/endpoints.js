@@ -63,6 +63,10 @@ const searchCredits = (baseRate, allowFlag) => (state) => {
 // --- shared field definitions -------------------------------------------
 
 const f = {
+  // The documentation marks name optional on the activity and post
+  // endpoints. It is not: they all create a queue through one model that
+  // requires it, and omitting it answers 500 "Path `name` is required".
+  // Measured against staging on 2026-09-22.
   name: (required) => ({
     name: 'name',
     label: 'name',
@@ -212,7 +216,7 @@ export const ENDPOINTS = [
         default: [...ACTIVITY_LISTS],
         hint: 'Each list costs 2 credits per profile on its own. All three bundle into one /activity request at 4, so two lists cost exactly what three do.',
       },
-      f.name(false),
+      f.name(true),
       f.priority(false),
       f.webhookTags,
     ],
@@ -236,7 +240,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/posts',
     auth: true,
     summary: 'Only the posts each profile published.',
-    fields: [f.profiles, f.name(false), f.priority(false), f.webhookTags],
+    fields: [f.profiles, f.name(true), f.priority(false), f.webhookTags],
     credits: perItem('profiles', 2),
   },
   {
@@ -248,7 +252,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/comments',
     auth: true,
     summary: 'Only the comments each profile left.',
-    fields: [f.profiles, f.name(false), f.priority(false), f.webhookTags],
+    fields: [f.profiles, f.name(true), f.priority(false), f.webhookTags],
     credits: perItem('profiles', 2),
   },
   {
@@ -260,7 +264,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/reactions',
     auth: true,
     summary: 'Only the posts each profile reacted to.',
-    fields: [f.profiles, f.name(false), f.priority(false), f.webhookTags],
+    fields: [f.profiles, f.name(true), f.priority(false), f.webhookTags],
     credits: perItem('profiles', 2),
   },
 
@@ -272,7 +276,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/latest-post',
     auth: true,
     summary: 'The single most recent item per profile.',
-    fields: [f.profiles, f.name(false), f.priority(false), f.webhookTags],
+    fields: [f.profiles, f.name(true), f.priority(false), f.webhookTags],
     credits: perItem('profiles', 5),
   },
   {
@@ -283,7 +287,7 @@ export const ENDPOINTS = [
     path: '/open-refresh/post-by-url',
     auth: true,
     summary: 'Scrape individual posts from their own permalinks.',
-    fields: [f.postUrls, f.name(false), f.priority(false), f.webhookTags],
+    fields: [f.postUrls, f.name(true), f.priority(false), f.webhookTags],
     credits: perItem('posts', 1),
   },
 
