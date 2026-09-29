@@ -92,40 +92,58 @@ describe('API keys', () => {
     return send(method, path, body, { cookie: `${SESSION_COOKIE}=${token}` })
   }
 
-  it('starts with nothing saved for either environment', async () => {
+  it('starts with nothing saved for either api or environment', async () => {
     const { keys } = await (await call('GET', '/keys')).json()
-    expect(keys.staging.set).toBe(false)
-    expect(keys.production.set).toBe(false)
+    for (const api of ['legacy', 'v1']) {
+      for (const env of ['staging', 'production']) {
+        expect(keys[api][env].set, `${api}/${env}`).toBe(false)
+      }
+    }
   })
 
   it('saves a key and never hands it back', async () => {
-    const res = await call('PUT', '/keys', JSON.stringify({ environment: 'staging', apiKey: 'afc5a435-a036-4316-a74b-7afa301c9a80' }))
+    const res = await call('PUT', '/keys', JSON.stringify({ api: 'legacy', environment: 'staging', apiKey: 'afc5a435-a036-4316-a74b-7afa301c9a80' }))
     const { keys } = await res.json()
-    expect(keys.staging.set).toBe(true)
-    expect(keys.staging.hint).toBe('afc5…9a80')
+    expect(keys.legacy.staging.set).toBe(true)
+    expect(keys.legacy.staging.hint).toBe('afc5…9a80')
     expect(JSON.stringify(keys)).not.toContain('a036-4316')
   })
 
-  it('keeps the two environments apart', async () => {
-    await call('PUT', '/keys', JSON.stringify({ environment: 'production', apiKey: 'prod-key-1234567890' }))
+  it('keeps a v1 key apart from a legacy one for the same environment', async () => {
+    await call('PUT', '/keys', JSON.stringify({ api: 'v1', environment: 'staging', apiKey: '98cd9fbc-6b38-4896-a92f-b4b420d24532' }))
     const { keys } = await (await call('GET', '/keys')).json()
-    expect(keys.staging.hint).toBe('afc5…9a80')
-    expect(keys.production.hint).toBe('prod…7890')
+    expect(keys.legacy.staging.hint).toBe('afc5…9a80')
+    expect(keys.v1.staging.hint).toBe('98cd…4532')
+    expect(keys.v1.production.set).toBe(false)
   })
 
-  it('refuses an environment it does not serve', async () => {
-    const res = await call('PUT', '/keys', JSON.stringify({ environment: 'wherever', apiKey: 'x' }))
-    expect(res.status).toBe(400)
+  it('defaults to legacy when no api is named, as older callers do', async () => {
+    await call('PUT', '/keys', JSON.stringify({ environment: 'production', apiKey: 'legacy-prod-key-0000' }))
+    const { keys } = await (await call('GET', '/keys')).json()
+    expect(keys.legacy.production.set).toBe(true)
+    expect(keys.v1.production.set).toBe(false)
+  })
+
+  it('keeps the two environments apart', async () => {
+    await call('PUT', '/keys', JSON.stringify({ api: 'legacy', environment: 'production', apiKey: 'prod-key-1234567890' }))
+    const { keys } = await (await call('GET', '/keys')).json()
+    expect(keys.legacy.staging.hint).toBe('afc5…9a80')
+    expect(keys.legacy.production.hint).toBe('prod…7890')
+  })
+
+  it('refuses an environment or an api it does not serve', async () => {
+    expect((await call('PUT', '/keys', JSON.stringify({ environment: 'wherever', apiKey: 'x' }))).status).toBe(400)
+    expect((await call('PUT', '/keys', JSON.stringify({ api: 'v2', environment: 'staging', apiKey: 'x' }))).status).toBe(400)
   })
 
   it('refuses an empty key rather than storing a blank', async () => {
-    expect((await call('PUT', '/keys', JSON.stringify({ environment: 'staging', apiKey: '   ' }))).status).toBe(400)
+    expect((await call('PUT', '/keys', JSON.stringify({ api: 'legacy', environment: 'staging', apiKey: '   ' }))).status).toBe(400)
   })
 
   it('keeps one person\'s keys away from another', async () => {
     const { keys } = await (await asOther('GET', '/keys')).json()
-    expect(keys.staging.set).toBe(false)
-    expect(keys.production.set).toBe(false)
+    expect(keys.legacy.staging.set).toBe(false)
+    expect(keys.v1.staging.set).toBe(false)
   })
 
   it('will not mint a token for an environment with no key', async () => {
@@ -134,11 +152,27 @@ describe('API keys', () => {
     expect((await res.json()).error).toBe('no_key')
   })
 
-  it('forgets one environment without touching the other', async () => {
-    await call('DELETE', '/keys?environment=production')
+  it('forgets one slot without touching the others', async () => {
+    await call('DELETE', '/keys?api=legacy&environment=production')
     const { keys } = await (await call('GET', '/keys')).json()
-    expect(keys.production.set).toBe(false)
-    expect(keys.staging.set).toBe(true)
+    expect(keys.legacy.production.set).toBe(false)
+    expect(keys.legacy.staging.set).toBe(true)
+    expect(keys.v1.staging.set).toBe(true)
+  })
+
+  it('will not proxy a v1 call when no v1 key is stored', async () => {
+    const res = await asOther('POST', '/keys/proxy', JSON.stringify({ environment: 'staging', path: '/account', method: 'GET' }))
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toBe('no_key')
+  })
+
+  it('refuses a proxy path that does not start with a slash', async () => {
+    const res = await call('POST', '/keys/proxy', JSON.stringify({ environment: 'staging', path: 'account', method: 'GET' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('needs a session to proxy, like everything else', async () => {
+    expect((await anon('POST', '/keys/proxy', JSON.stringify({ path: '/account' }))).status).toBe(401)
   })
 
   it('needs a session like everything else', async () => {

@@ -123,9 +123,65 @@ function renderLists(field, entry, onChange) {
   return wrap
 }
 
+// A JSON box for the shapes a form cannot sensibly flatten — search filters,
+// batch items. It says whether what is in it will parse, because a box that
+// will not parse is silently dropped from the request otherwise.
+function renderJson(field, entry, onChange) {
+  const wrap = el('div', 'json-field')
+  const box = el('textarea', 'input textarea mono')
+  box.rows = 8
+  box.spellcheck = false
+  box.value = entry.value ?? field.default ?? ''
+
+  const state = el('p', 'json-state')
+  const check = () => {
+    const text = String(box.value || '').trim()
+    if (!text) {
+      state.textContent = ''
+      state.className = 'json-state'
+      return
+    }
+    try {
+      JSON.parse(text)
+      state.textContent = 'valid JSON'
+      state.className = 'json-state ok'
+    } catch (err) {
+      state.textContent = String(err.message)
+      state.className = 'json-state bad'
+    }
+  }
+
+  box.addEventListener('input', () => {
+    entry.value = box.value
+    check()
+    onChange()
+  })
+
+  const tidy = el('button', 'btn-ghost', 'Format')
+  tidy.type = 'button'
+  tidy.addEventListener('click', () => {
+    try {
+      box.value = JSON.stringify(JSON.parse(box.value), null, 2)
+      entry.value = box.value
+      check()
+      onChange()
+    } catch {
+      check()
+    }
+  })
+
+  wrap.append(box)
+  const row = el('div', 'row-actions')
+  row.append(tidy, state)
+  wrap.append(row)
+  check()
+  return wrap
+}
+
 function renderControl(field, entry, onChange) {
   if (field.type === 'links') return renderLinks(field, entry, onChange)
   if (field.type === 'lists') return renderLists(field, entry, onChange)
+  if (field.type === 'json') return renderJson(field, entry, onChange)
 
   if (field.type === 'lines' || field.type === 'tags') {
     const box = el('textarea', 'input textarea')

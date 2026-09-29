@@ -13,6 +13,7 @@ import { mountQueues, addQueues, setJobsVisible, render as renderQueues } from '
 import { mountWebhooks } from './ui/webhooks.js'
 import { mountLinks } from './ui/links.js'
 import { mountKeys, onKeysChanged, knownKeys } from './ui/keys.js'
+import { mountV1, selectV1, currentV1, v1Groups } from './ui/v1.js'
 import { tokenFor, freshToken, clearToken, currentEnvironment, environmentLabel } from './keys.js'
 
 const WHERE_KEY = 'up2data.where'
@@ -33,6 +34,16 @@ const PANELS = [
   { id: 'burst', label: 'Load test', node: 'panel-burst' },
   { id: 'keys', label: 'API keys', node: 'panel-keys' },
 ]
+
+// Two APIs live side by side: the legacy one this console grew up around, and
+// v1, whose operations come straight from its published spec.
+const API_KEY_CHOICE = 'up2data.api'
+let api = 'legacy'
+try {
+  api = localStorage.getItem(API_KEY_CHOICE) === 'v1' ? 'v1' : 'legacy'
+} catch {
+  api = 'legacy'
+}
 
 let where = { kind: 'job', id: JOBS[0].id }
 let tokenReady = false
@@ -68,13 +79,14 @@ function renderKeyStatus() {
   }
 
   const keys = knownKeys()
-  const state = keys && keys[environment]
+  const state = keys && keys[api] && keys[api][environment]
+  const which = `${api === 'v1' ? 'v1' : 'legacy'} ${environmentLabel(environment).toLowerCase()}`
 
   if (state && state.set) {
-    status.textContent = `${environmentLabel(environment)} key ${state.hint}`
+    status.textContent = `${which} key ${state.hint}`
     status.className = 'auth-status live'
   } else if (keys) {
-    status.textContent = `No ${environmentLabel(environment).toLowerCase()} key — add one under API keys`
+    status.textContent = `No ${which} key — add one under API keys`
     status.className = 'auth-status expired'
   }
 }
@@ -84,6 +96,39 @@ function renderKeyStatus() {
 function renderRail() {
   const rail = $('#rail')
   rail.textContent = ''
+
+  const swap = el('div', 'api-switch')
+  for (const [id, label] of [['legacy', 'Legacy'], ['v1', 'v1']]) {
+    const btn = el('button', 'api-choice' + (api === id ? ' on' : ''), label)
+    btn.type = 'button'
+    btn.addEventListener('click', () => {
+      if (api === id) return
+      api = id
+      try { localStorage.setItem(API_KEY_CHOICE, api) } catch {}
+      renderRail()
+      renderKeyStatus()
+      go(api === 'v1' ? { kind: 'v1', id: currentV1()?.id } : { kind: 'job', id: JOBS[0].id })
+    })
+    swap.append(btn)
+  }
+  rail.append(swap)
+
+  if (api === 'v1') {
+    for (const group of v1Groups()) {
+      rail.append(el('div', 'rail-group', group.name))
+      for (const e of group.endpoints) {
+        const btn = el('button', 'rail-item rail-plain')
+        btn.dataset.where = `v1:${e.id}`
+        btn.append(el('span', 'rail-title', e.label))
+        btn.append(el('span', 'rail-blurb mono', `${e.method} ${e.path}`))
+        btn.addEventListener('click', () => go({ kind: 'v1', id: e.id }))
+        rail.append(btn)
+      }
+    }
+    railTrack(rail)
+    markRail()
+    return
+  }
 
   rail.append(el('div', 'rail-group', 'Enrich'))
   for (const j of JOBS) {
@@ -95,6 +140,11 @@ function renderRail() {
     rail.append(btn)
   }
 
+  railTrack(rail)
+  markRail()
+}
+
+function railTrack(rail) {
   rail.append(el('div', 'rail-group', 'Track'))
   for (const p of PANELS) {
     const btn = el('button', 'rail-item rail-plain')
@@ -103,7 +153,6 @@ function renderRail() {
     btn.addEventListener('click', () => go({ kind: 'panel', id: p.id }))
     rail.append(btn)
   }
-  markRail()
 }
 
 function markRail() {
@@ -118,6 +167,7 @@ function go(next) {
   markRail()
 
   $('#job').hidden = where.kind !== 'job'
+  $('#v1').hidden = where.kind !== 'v1'
   for (const p of PANELS) $(`#${p.node}`).hidden = !(where.kind === 'panel' && where.id === p.id)
 
   // Jobs update themselves while you are looking at them, and stop when you
@@ -125,6 +175,7 @@ function go(next) {
   setJobsVisible(where.kind === 'panel' && where.id === 'jobs')
 
   if (where.kind === 'job') selectJob(where.id)
+  if (where.kind === 'v1') selectV1(where.id)
 }
 
 // --- a job ---------------------------------------------------------------
@@ -526,6 +577,7 @@ mountQueues($('#queues'), { getToken })
 mountWebhooks($('#webhooks'))
 mountLinks($('#links'))
 mountKeys($('#keys'))
+mountV1($('#v1'), { getEnvironment: () => currentEnvironment() || 'staging' })
 onKeysChanged(() => {
   renderKeyStatus()
   ensureToken().then(() => {

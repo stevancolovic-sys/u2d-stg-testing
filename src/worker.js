@@ -184,12 +184,24 @@ export class LinkStore {
 
 const DEFAULT_DOMAIN = 'totema.co'
 
-// The two APIs a key can belong to. A key is issued for one of them, so they
-// are stored apart — a staging key sent to production is simply refused.
+// Two APIs, two deployments each. A key is issued for exactly one of the four,
+// so they are stored apart — a staging key sent to production is refused, and
+// a legacy key is meaningless to v1.
 const API_BASES = {
-  staging: 'https://api.staging.uptodata.io/api',
-  production: 'https://api.uptodata.io/api',
+  legacy: {
+    staging: 'https://api.staging.uptodata.io/api',
+    production: 'https://api.uptodata.io/api',
+  },
+  v1: {
+    staging: 'https://api.staging.uptodata.io/v1',
+    production: 'https://api.uptodata.io/v1',
+  },
 }
+
+const APIS = Object.keys(API_BASES)
+const ENVIRONMENTS = Object.keys(API_BASES.legacy)
+const slotOf = (api, environment) => `${api}:${environment}`
+const baseFor = (api, environment) => (API_BASES[api] || {})[environment] || null
 
 // Enough to recognise a key, not enough to use one.
 const hintOf = (key) => {
@@ -403,19 +415,45 @@ export class KeyStore {
   constructor(ctx) {
     this.ctx = ctx
     this.sql = ctx.storage.sql
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS keys (
-      environment TEXT PRIMARY KEY,
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS key_slots (
+      slot TEXT PRIMARY KEY,
+      api TEXT NOT NULL,
+      environment TEXT NOT NULL,
       api_key TEXT NOT NULL,
       saved_ms INTEGER NOT NULL
     )`)
+
+    // Keys saved before v1 existed were stored by environment alone; they were
+    // all legacy keys, so that is where they belong.
+    try {
+      const old = this.sql.exec('SELECT environment, api_key, saved_ms FROM keys').toArray()
+      for (const row of old) {
+        this.sql.exec(
+          `INSERT INTO key_slots (slot, api, environment, api_key, saved_ms) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(slot) DO NOTHING`,
+          slotOf('legacy', row.environment),
+          'legacy',
+          row.environment,
+          row.api_key,
+          row.saved_ms
+        )
+      }
+      if (old.length) this.sql.exec('DROP TABLE keys')
+    } catch {
+      // No old table: nothing to carry over.
+    }
   }
 
   list() {
-    const rows = this.sql.exec('SELECT environment, api_key, saved_ms FROM keys').toArray()
+    const rows = this.sql.exec('SELECT * FROM key_slots').toArray()
     const out = {}
-    for (const env of Object.keys(API_BASES)) out[env] = { set: false }
+    for (const api of APIS) {
+      out[api] = {}
+      for (const environment of ENVIRONMENTS) out[api][environment] = { set: false }
+    }
     for (const row of rows) {
-      out[row.environment] = {
+      if (!out[row.api]) continue
+      out[row.api][row.environment] = {
         set: true,
         hint: hintOf(row.api_key),
         savedAt: new Date(row.saved_ms).toISOString(),
@@ -424,8 +462,10 @@ export class KeyStore {
     return out
   }
 
-  keyFor(environment) {
-    const row = this.sql.exec('SELECT api_key FROM keys WHERE environment = ?', environment).toArray()[0]
+  keyFor(api, environment) {
+    const row = this.sql
+      .exec('SELECT api_key FROM key_slots WHERE slot = ?', slotOf(api, environment))
+      .toArray()[0]
     return row ? row.api_key : null
   }
 
@@ -436,13 +476,16 @@ export class KeyStore {
 
     if (request.method === 'PUT') {
       const body = await request.json().catch(() => null)
+      const api = (body && body.api) || 'legacy'
       const environment = body && body.environment
       const apiKey = body && typeof body.apiKey === 'string' ? body.apiKey.trim() : ''
-      if (!API_BASES[environment]) return json({ error: 'Unknown environment' }, 400)
+      if (!baseFor(api, environment)) return json({ error: 'Unknown api or environment' }, 400)
       if (!apiKey) return json({ error: 'No key given' }, 400)
       this.sql.exec(
-        `INSERT INTO keys (environment, api_key, saved_ms) VALUES (?, ?, ?)
-         ON CONFLICT(environment) DO UPDATE SET api_key = excluded.api_key, saved_ms = excluded.saved_ms`,
+        `INSERT INTO key_slots (slot, api, environment, api_key, saved_ms) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(slot) DO UPDATE SET api_key = excluded.api_key, saved_ms = excluded.saved_ms`,
+        slotOf(api, environment),
+        api,
         environment,
         apiKey,
         Date.now()
@@ -451,20 +494,21 @@ export class KeyStore {
     }
 
     if (request.method === 'DELETE') {
+      const api = url.searchParams.get('api') || 'legacy'
       const environment = url.searchParams.get('environment')
-      if (environment) this.sql.exec('DELETE FROM keys WHERE environment = ?', environment)
-      else this.sql.exec('DELETE FROM keys')
+      if (environment) this.sql.exec('DELETE FROM key_slots WHERE slot = ?', slotOf(api, environment))
+      else this.sql.exec('DELETE FROM key_slots')
       return json({ keys: this.list() })
     }
 
-    // Mint a token from the stored key. The key stays here.
-    if (request.method === 'POST') {
+    // Mint a legacy token from the stored key. The key stays here.
+    if (request.method === 'POST' && url.pathname === '/token') {
       const body = await request.json().catch(() => null)
       const environment = (body && body.environment) || 'staging'
-      const base = API_BASES[environment]
+      const base = baseFor('legacy', environment)
       if (!base) return json({ error: 'Unknown environment' }, 400)
 
-      const apiKey = this.keyFor(environment)
+      const apiKey = this.keyFor('legacy', environment)
       if (!apiKey) return json({ error: 'no_key', environment }, 404)
 
       const res = await fetch(`${base}/api-auth/authenticate`, {
@@ -474,12 +518,50 @@ export class KeyStore {
       }).catch(() => null)
 
       if (!res) return json({ error: 'The API could not be reached' }, 502)
-
       const answer = await res.json().catch(() => null)
       if (!res.ok || !answer || !answer.accessToken) {
         return json({ error: 'rejected', status: res.status }, res.status === 401 ? 401 : 502)
       }
       return json({ accessToken: answer.accessToken, environment })
+    }
+
+    // Forward a v1 call, adding the key. v1 authenticates with a static
+    // header, so the browser would otherwise have to hold the key itself.
+    if (request.method === 'POST' && url.pathname === '/proxy') {
+      const payload = await request.json().catch(() => null)
+      const environment = (payload && payload.environment) || 'staging'
+      const target = payload && payload.path
+      const base = baseFor('v1', environment)
+      if (!base || typeof target !== 'string' || !target.startsWith('/')) {
+        return json({ error: 'Unknown environment or path' }, 400)
+      }
+
+      const apiKey = this.keyFor('v1', environment)
+      if (!apiKey) return json({ error: 'no_key', api: 'v1', environment }, 404)
+
+      const method = (payload.method || 'POST').toUpperCase()
+      const started = Date.now()
+      const res = await fetch(base + target, {
+        method,
+        headers: {
+          'X-API-Key': apiKey,
+          ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
+      }).catch(() => null)
+
+      if (!res) return json({ error: 'unreachable' }, 502)
+
+      const text = await res.text()
+      // The answer is passed through as it came, so the console shows what the
+      // API actually said rather than something rewritten on the way.
+      return json({
+        status: res.status,
+        ok: res.ok,
+        headers: Object.fromEntries(res.headers),
+        raw: text,
+        elapsedMs: Date.now() - started,
+      })
     }
 
     return json({ error: 'Not found' }, 404)
@@ -530,15 +612,15 @@ export default {
     const refused = await gate(request, env, url)
     if (refused) return refused
 
-    if (parts[0] === 'keys' && (!parts[1] || parts[1] === 'token')) {
+    if (parts[0] === 'keys' && (!parts[1] || parts[1] === 'token' || parts[1] === 'proxy')) {
       const session = await verifySession(
         parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
         authConfig(env).secret
       )
       // The gate above already refused anyone without a session.
       const stub = env.KEYS.get(env.KEYS.idFromName(session.email))
-      const inner = parts[1] === 'token' ? 'https://do/token' : `https://do/${url.search}`
-      const method = parts[1] === 'token' ? 'POST' : request.method
+      const inner = parts[1] ? `https://do/${parts[1]}` : `https://do/${url.search}`
+      const method = parts[1] ? 'POST' : request.method
       return stub.fetch(
         new Request(inner, {
           method,

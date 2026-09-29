@@ -6,11 +6,13 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "docs": "node scripts/build-docs.mjs"
+    "docs": "node scripts/build-docs.mjs",
+    "build:v1": "node scripts/build-v1.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.0",
     "vitest": "~3.0.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.0.0",
+    "yaml": "^2.5.0"
   }
 }

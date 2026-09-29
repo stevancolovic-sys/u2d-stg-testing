@@ -1,0 +1,4834 @@
+openapi: "3.1.0"
+info:
+  title: "UpToData API (/v1)"
+  version: "1.0.0"
+  description: "UpToData's /v1 API is a usage-based B2B data API: real-time
+    LinkedIn profile, company, post, and job enrichment, live people, company,
+    job, and post search, Sales Navigator search, and asynchronous batch jobs,
+    all through one `X-API-Key` header. Every call answers a `{data, meta}`
+    envelope on success or an `{error}` envelope on failure. Enrich, activity,
+    and batch item calls bill both when the target is found and when it comes
+    back not found, private, deleted, or unreachable (`422
+    unprocessable_target`); a call is only free when it fails with `400`, `401`,
+    `402`, `429`, `500`, or `504`. Job search bills per job returned; people,
+    company, and post search (Sales Navigator and standard alike) bill per page
+    of up to 25 results, and empty pages are free. The base URL is
+    `https://api.uptodata.io/v1`. Sync endpoints answer directly, typically in 2
+    to 8 seconds; submit `POST /batch` for volume and read results by webhook
+    (`batch.completed`) or by polling `GET /batch/{job_id}`."
+  license:
+    name: "Proprietary"
+    identifier: "UNLICENSED"
+servers:
+  - url: "https://api.uptodata.io/v1"
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: "Profiles"
+    description: "Profiles operations."
+  - name: "Companies"
+    description: "Companies operations."
+  - name: "Jobs"
+    description: "Jobs operations."
+  - name: "Posts"
+    description: "Posts operations."
+  - name: "Search"
+    description: "Search operations."
+  - name: "Batch"
+    description: "Batch operations."
+  - name: "Account"
+    description: "Account operations."
+paths:
+  /profiles/enrich:
+    post:
+      operationId: "profiles-enrich"
+      summary: "Enrich a profile"
+      description: "Turn any LinkedIn profile URL into a full live record, scraped at
+        request time."
+      tags:
+        - "Profiles"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                urn:
+                  type: "string"
+                fields:
+                  type: "array"
+                  items:
+                    type: "string"
+                with_followers_and_connections:
+                  type: "boolean"
+                with_full_skills_and_endorsements:
+                  type: "boolean"
+            example:
+              url: "https://www.linkedin.com/in/satyanadella"
+              with_followers_and_connections: true
+              with_full_skills_and_endorsements: true
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  url: "https://www.linkedin.com/in/satyanadella"
+                  full_name: "Satya Nadella"
+                  public_identifier: "satyanadella"
+                  headline: "Chairman and CEO at Microsoft"
+                  location:
+                    city: "Redmond"
+                    region: "Washington"
+                    country: "United States"
+                  about: "Empowering every person and every organization on the planet to achieve
+                    more."
+                  urn: "urn:li:member:19186432"
+                  linkedin_id: "19186432"
+                  positions:
+                    - title: "Chairman and CEO"
+                      company: "Microsoft"
+                      company_url: "https://www.linkedin.com/company/microsoft"
+                      linkedin_id: "1035"
+                      position_id: "urn:li:fsd_profilePosition:(ACoAAAEyX8gBmX0wjgGmBhKd8rC5WYkYlKk,2\
+                        227646598)"
+                      started_at: "2014-02"
+                      ended_at: null
+                      description: "CEO since 2014; Chairman since 2021."
+                      skills:
+                        - "Cloud Computing"
+                        - "Leadership"
+                      company_industry: "Software Development"
+                      company_headcount: "10001+"
+                      company_logo_url: "https://media.licdn.com/dms/image/v2/C560BAQExample/company-\
+                        logo_200_200/0/microsoft"
+                    - title: "Executive Vice President, Cloud and Enterprise"
+                      company: "Microsoft"
+                      company_url: "https://www.linkedin.com/company/microsoft"
+                      linkedin_id: "1035"
+                      position_id: "urn:li:fsd_profilePosition:(ACoAAAEyX8gBmX0wjgGmBhKd8rC5WYkYlKk,1\
+                        841102234)"
+                      started_at: "2011-02"
+                      ended_at: "2014-02"
+                      description: "Led the transformation to cloud and the launch of Azure."
+                      skills:
+                        - "Cloud Computing"
+                        - "Enterprise Software"
+                      company_industry: "Software Development"
+                      company_headcount: "10001+"
+                      company_logo_url: "https://media.licdn.com/dms/image/v2/C560BAQExample/company-\
+                        logo_200_200/0/microsoft"
+                  current_company:
+                    name: "Microsoft"
+                    url: "https://www.linkedin.com/company/microsoft"
+                    linkedin_id: "1035"
+                    title: "Chairman and CEO"
+                    started_at: "2014-02"
+                    logo_url: "https://media.licdn.com/dms/image/v2/C560BAQExample/company-logo_200\
+                      _200/0/microsoft"
+                    industry: "Software Development"
+                    headcount: "10001+"
+                  education:
+                    - school: "The University of Chicago Booth School of Business"
+                      degree: "MBA"
+                      field: "Business Administration"
+                      activities: "President, High Tech Club"
+                      education_id: "urn:li:fsd_profileEducation:(ACoAAAEyX8gBmX0wjgGmBhKd8rC5WYkYlKk\
+                        ,615479904)"
+                      school_logo_url: "https://media.licdn.com/dms/image/v2/C4D0BAQExample/company-l\
+                        ogo_200_200/0/chicago-booth"
+                    - school: "University of Wisconsin-Milwaukee"
+                      degree: "MS"
+                      field: "Computer Science"
+                      education_id: "urn:li:fsd_profileEducation:(ACoAAAEyX8gBmX0wjgGmBhKd8rC5WYkYlKk\
+                        ,615479905)"
+                      school_logo_url: "https://media.licdn.com/dms/image/v2/C4D0BAQExample/company-l\
+                        ogo_200_200/0/uwm"
+                  skills:
+                    - "Cloud Computing"
+                    - "Leadership"
+                    - "Enterprise Software"
+                    - "Artificial Intelligence (AI)"
+                    - "Strategy"
+                    - "Product Management"
+                  languages:
+                    - "English"
+                    - "Telugu"
+                  certifications:
+                    - name: "AWS Certified Cloud Practitioner"
+                      authority: "Amazon Web Services (AWS)"
+                      issued_at: "2023-04"
+                      expires_at: "2026-04"
+                      url: "https://www.credly.com/badges/example-aws"
+                      linkedin_id: "2382910"
+                      license_number: "AWS-CCP-4821937"
+                  is_open_to_work: true
+                  profile_picture_url: "https://media.licdn.com/dms/image/v2/D5603AQExample/profi\
+                    le-displayphoto-shrink_800_800/0/satyanadella"
+                  followers_count: 11482930
+                  connections_count: 500
+                  scraped_at: "2026-07-07T14:00:04Z"
+                  skill_endorsements:
+                    - name: "Cloud Computing"
+                      endorsement_count: 312
+                    - name: "Leadership"
+                      endorsement_count: 274
+                    - name: "Enterprise Software"
+                      endorsement_count: 87
+                    - name: "Artificial Intelligence (AI)"
+                      endorsement_count: 64
+                    - name: "Strategy"
+                      endorsement_count: 52
+                    - name: "Product Management"
+                      endorsement_count: 31
+                  publications:
+                    - title: "Hit Refresh"
+                      publisher: "Harper Business"
+                      published_at: "2017-09"
+                      url: "https://www.harpercollins.com/products/hit-refresh"
+                  patents:
+                    - title: "Distributed resource management in a cloud computing environment"
+                      number: "US10127086B2"
+                      issued_at: "2018-11"
+                  awards:
+                    - title: "Financial Times Person of the Year"
+                      issuer: "Financial Times"
+                      issued_at: "2019"
+                  interests:
+                    - "Artificial Intelligence"
+                    - "Climate"
+                    - "Education"
+                  projects:
+                    - name: "Microsoft Azure"
+                      title: "Cloud platform"
+                      description: "Hyperscale cloud for enterprises and developers."
+                      url: "https://azure.microsoft.com"
+                      started_at: "2011-02"
+                      ended_at: null
+                  recommendations:
+                    - text: "Satya is an exceptional leader who sets a high bar for culture and
+                        product."
+                      relationship: "Worked with Satya on the same team"
+                      created_at: "2021-03-15T00:00:00Z"
+                      person:
+                        url: "https://www.linkedin.com/in/example-vp"
+                        full_name: "Alex Example"
+                        headline: "EVP, Cloud + AI at Microsoft"
+                        urn: "ACoAABOPHB8BM6example"
+                  primary_locale: "en_US"
+                  is_premium: true
+                  is_verified: true
+                  is_open_profile: false
+                  job_preferences:
+                    titles:
+                      - "Board Member"
+                      - "Advisor"
+                    locations:
+                      - "Greater Seattle Area"
+                      - "San Francisco Bay Area"
+                    workplace_types:
+                      - "hybrid"
+                      - "remote"
+                    start_timing: "flexible"
+                  profile_urn: "ACoAAAEyX8gBmX0wjgGmBhKd8rC5WYkYlKk"
+                meta:
+                  creditsUsed: 4
+                  creditsRemaining: 98417
+                  billed: true
+                  reason: "profile_found"
+                  requestId: "req_8f2ka91x"
+                  latencyMs: 5240
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Profile"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, or bad URL format."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, or bad URL format."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Target not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Target not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /profiles/activity:
+    post:
+      operationId: "profiles-activity"
+      summary: "Get profile activity"
+      description: "Get one profile's authored posts, comments, reactions, or reposts,
+        one kind per call."
+      tags:
+        - "Profiles"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                urn:
+                  type: "string"
+                kind:
+                  type: "string"
+                posted_within:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+              required:
+                - "kind"
+            example:
+              url: "https://linkedin.com/in/janedoe"
+              kind: "posts"
+              posted_within: "month"
+      responses:
+        "200":
+          description: "kind: posts / kind: comments / kind: reactions / kind: reposts"
+          content:
+            application/json:
+              examples:
+                kind-posts:
+                  summary: "kind: posts"
+                  value:
+                    data:
+                      kind: "posts"
+                      url: "https://www.linkedin.com/in/janedoe"
+                      urn: "ACoAABOPHB8BM6example"
+                      posts:
+                        - url: "https://linkedin.com/posts/janedoe_launch-activity-7215"
+                          urn: "7267273010393358336"
+                          share_urn: "7315779815297421316"
+                          author:
+                            name: "Jane Doe"
+                            url: "https://linkedin.com/in/janedoe"
+                            headline: "CEO at Example"
+                          text: "Today we are launching a new way to run outbound on live profile data."
+                          posted_at: "2026-07-06T18:45:00Z"
+                          reactions_count: 1204
+                          comments_count: 187
+                          reposts_count: 96
+                          scraped_at: "2026-07-08T12:00:00Z"
+                          media:
+                            - type: "image"
+                              url: "https://media.licdn.com/dms/image/v2/D4E22AQExample/feedshare-shrink_2048\
+                                _1536/0/launch"
+                      pagination:
+                        page: 1
+                        per_page: 25
+                        returned: 1
+                        has_more: false
+                        total_estimate: 1
+                      pagination_token: null
+                      scraped_at: "2026-07-08T12:00:00Z"
+                    meta:
+                      creditsUsed: 2
+                      creditsRemaining: 98417
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 2100
+                kind-comments:
+                  summary: "kind: comments"
+                  value:
+                    data:
+                      kind: "comments"
+                      url: "https://www.linkedin.com/in/janedoe"
+                      urn: "ACoAABOPHB8BM6example"
+                      comments:
+                        - text: "Congrats on the launch - this is the workflow our outbound team has been
+                            missing."
+                          posted_at: "2026-07-05T14:22:00Z"
+                          replies_count: 0
+                          commenter:
+                            url: "https://www.linkedin.com/in/janedoe"
+                            full_name: "Jane Doe"
+                            headline: "VP Marketing at Acme Corp"
+                            urn: "ACoAABOPHB8BM6example"
+                          target_post:
+                            url: "https://linkedin.com/posts/acme_announcement-activity-7210"
+                            urn: "7267273010393358000"
+                            text_snippet: "We are thrilled to announce a new way to run outbound on live
+                              profile data."
+                            author:
+                              name: "Acme Corp"
+                              url: "https://linkedin.com/company/acme"
+                              headline: "B2B software"
+                      pagination:
+                        page: 1
+                        per_page: 25
+                        returned: 25
+                        has_more: true
+                        total_estimate: 60
+                      pagination_token: "eyJwYWdlIjoyfQ.signature"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                    meta:
+                      creditsUsed: 2
+                      creditsRemaining: 98417
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 2400
+                kind-reactions:
+                  summary: "kind: reactions"
+                  value:
+                    data:
+                      kind: "reactions"
+                      url: "https://www.linkedin.com/in/janedoe"
+                      urn: "ACoAABOPHB8BM6example"
+                      reactions:
+                        - reaction_type: "PRAISE"
+                          reacted_at: "2026-07-06T09:12:00Z"
+                          reactor:
+                            url: "https://www.linkedin.com/in/janedoe"
+                            full_name: "Jane Doe"
+                            headline: "VP Marketing at Acme Corp"
+                            urn: "ACoAABOPHB8BM6example"
+                          target_post:
+                            url: "https://linkedin.com/posts/acme_announcement-activity-7210"
+                            urn: "7267273010393358000"
+                            text_snippet: "We are thrilled to announce a new way to run outbound on live
+                              profile data."
+                            author:
+                              name: "Acme Corp"
+                              url: "https://linkedin.com/company/acme"
+                              headline: "B2B software"
+                      pagination:
+                        page: 1
+                        per_page: 25
+                        returned: 25
+                        has_more: true
+                        total_estimate: 60
+                      pagination_token: "eyJwYWdlIjoyfQ.signature"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                    meta:
+                      creditsUsed: 2
+                      creditsRemaining: 98417
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 1900
+                kind-reposts:
+                  summary: "kind: reposts"
+                  value:
+                    data:
+                      kind: "reposts"
+                      url: "https://www.linkedin.com/in/janedoe"
+                      urn: "ACoAABOPHB8BM6example"
+                      reposts:
+                        - url: "https://linkedin.com/posts/janedoe_share-activity-7218"
+                          urn: "7267273010393358444"
+                          share_urn: "7315779815297421444"
+                          author:
+                            name: "Acme Corp"
+                            url: "https://linkedin.com/company/acme"
+                            headline: "B2B software"
+                          text: "We are thrilled to announce a new way to run outbound on live profile
+                            data."
+                          posted_at: "2026-07-05T11:00:00Z"
+                          reactions_count: 842
+                          comments_count: 63
+                          reposts_count: 41
+                          scraped_at: "2026-07-08T12:00:00Z"
+                          media:
+                            - type: "image"
+                              url: "https://media.licdn.com/dms/image/v2/D4E22AQExample/feedshare-shrink_2048\
+                                _1536/0/announce"
+                      pagination:
+                        page: 1
+                        per_page: 25
+                        returned: 1
+                        has_more: false
+                        total_estimate: 1
+                      pagination_token: null
+                      scraped_at: "2026-07-08T12:00:00Z"
+                    meta:
+                      creditsUsed: 2
+                      creditsRemaining: 98417
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 1800
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ProfileActivityResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, or bad URL format."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, or bad URL format."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Target not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Target not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /profiles/recommendations:
+    post:
+      operationId: "profiles-recommendations"
+      summary: "Get profile recommendations"
+      description: "Get the written recommendations a profile has received, given, or both."
+      tags:
+        - "Profiles"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                urn:
+                  type: "string"
+                direction:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+            example:
+              url: "https://www.linkedin.com/in/janedoe"
+              direction: "both"
+              page: 1
+      responses:
+        "200":
+          description: "direction: both / No recommendations"
+          content:
+            application/json:
+              examples:
+                direction-both:
+                  summary: "direction: both"
+                  value:
+                    data:
+                      url: "https://www.linkedin.com/in/janedoe"
+                      public_identifier: "janedoe"
+                      linkedin_id: "123456789"
+                      urn: "ACoAABOPHB8BM6example"
+                      direction: "both"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                      given:
+                        recommendations:
+                          - text: "Jane is an exceptional leader. She rebuilt our go-to-market motion around
+                              live profile data."
+                            relationship: "Jane managed Alex directly"
+                            created_at: "2024-03-15T00:00:00Z"
+                            person:
+                              url: "https://www.linkedin.com/in/example"
+                              full_name: "Alex Example"
+                              headline: "VP Sales at Example Corp"
+                              urn: "ACoAABOPHB8BM6alexex"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: false
+                      received:
+                        recommendations:
+                          - text: "Outstanding engineer and a generous mentor."
+                            relationship: "Sam worked with Jane on the same team"
+                            created_at: "2025-01-10T00:00:00Z"
+                            person:
+                              url: "https://www.linkedin.com/in/manager"
+                              full_name: "Sam Manager"
+                              headline: "Engineering Director at Example Corp"
+                              urn: "ACoAABOPHB8BM6sammgr"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: true
+                    meta:
+                      creditsUsed: 2
+                      creditsRemaining: 98418
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 2100
+                no-recommendations:
+                  summary: "No recommendations"
+                  value:
+                    data:
+                      url: "https://www.linkedin.com/in/janedoe"
+                      public_identifier: "janedoe"
+                      linkedin_id: "123456789"
+                      urn: "ACoAABOPHB8BM6example"
+                      direction: "both"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                      given:
+                        recommendations: []
+                      received:
+                        recommendations: []
+                    meta:
+                      creditsUsed: 0
+                      creditsRemaining: 98420
+                      billed: false
+                      reason: "empty_result"
+                      requestId: "req_example"
+                      latencyMs: 1900
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ProfileRecommendationsResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or a direction
+            outside the enum."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or a direction outside
+                    the enum."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover every requested direction."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover every requested direction."
+        "422":
+          description: "Profile not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Profile not found, private, deleted, or unreachable. Billed as 1
+                    credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /profiles/interests:
+    post:
+      operationId: "profiles-interests"
+      summary: "Get profile interests"
+      description: "Get what a profile follows: top voices, companies, groups,
+        newsletters, and schools."
+      tags:
+        - "Profiles"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                urn:
+                  type: "string"
+                category:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+            example:
+              url: "https://www.linkedin.com/in/janedoe"
+              category: "companies"
+      responses:
+        "200":
+          description: "category: companies / category: all"
+          content:
+            application/json:
+              examples:
+                category-companies:
+                  summary: "category: companies"
+                  value:
+                    data:
+                      url: "https://www.linkedin.com/in/janedoe"
+                      public_identifier: "janedoe"
+                      linkedin_id: "123456789"
+                      urn: "ACoAABOPHB8BM6example"
+                      category: "companies"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                      companies:
+                        interests:
+                          - name: "Example Corp"
+                            url: "https://www.linkedin.com/company/example/"
+                            urn: "1035"
+                            headline: "B2B software for revenue teams"
+                            followers_count: 141007
+                            caption: "141,007 followers"
+                            logo_url: "https://media.licdn.com/dms/image/v2/C560BAQExample/company-logo_200\
+                              _200/0/example"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: true
+                    meta:
+                      creditsUsed: 1
+                      creditsRemaining: 98419
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 2000
+                category-all:
+                  summary: "category: all"
+                  value:
+                    data:
+                      url: "https://www.linkedin.com/in/janedoe"
+                      public_identifier: "janedoe"
+                      linkedin_id: "123456789"
+                      urn: "ACoAABOPHB8BM6example"
+                      category: "all"
+                      scraped_at: "2026-07-08T12:00:00Z"
+                      influencers:
+                        interests:
+                          - name: "Alex Example"
+                            url: "https://www.linkedin.com/in/example"
+                            urn: "ACoAABOPHB8BM6alexex"
+                            headline: "VP Sales at Example Corp"
+                            followers_count: 52310
+                            caption: "52,310 followers"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: false
+                      companies:
+                        interests: []
+                      groups:
+                        interests:
+                          - name: "Revenue Operations"
+                            url: "https://www.linkedin.com/groups/12345/"
+                            urn: "12345"
+                            members_count: 14182
+                            caption: "14,182 members"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: false
+                      newsletters:
+                        interests:
+                          - name: "The Outbound Weekly"
+                            url: "https://www.linkedin.com/newsletters/the-outbound-weekly-6900000000000000\
+                              000/"
+                            caption: "Published weekly"
+                        pagination:
+                          page: 1
+                          per_page: 10
+                          has_more: false
+                      schools:
+                        interests: []
+                    meta:
+                      creditsUsed: 3
+                      creditsRemaining: 98417
+                      billed: true
+                      reason: "success"
+                      requestId: "req_example"
+                      latencyMs: 2300
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ProfileInterestsResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or a category
+            outside the enum."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or a category outside
+                    the enum."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover every requested category."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover every requested category."
+        "422":
+          description: "Profile not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Profile not found, private, deleted, or unreachable. Billed as 1
+                    credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /companies/enrich:
+    post:
+      operationId: "companies-enrich"
+      summary: "Enrich a company"
+      description: "Turn any LinkedIn company URL, domain, or ID into live firmographics."
+      tags:
+        - "Companies"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                domain:
+                  type: "string"
+                linkedin_id:
+                  type: "string"
+                fields:
+                  type: "array"
+                  items:
+                    type: "string"
+            example:
+              url: "https://linkedin.com/company/anthropic"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  url: "https://www.linkedin.com/company/anthropic"
+                  linkedin_id: "74126343"
+                  name: "Anthropic"
+                  website: "https://anthropic.com"
+                  description: "AI safety and research company."
+                  industry: "Research Services"
+                  headcount: 2841
+                  headcount_growth_6m: 0.34
+                  company_size:
+                    min: 1001
+                    max: 5000
+                  founded: 2021
+                  hq:
+                    city: "San Francisco"
+                    region: "California"
+                    country: "US"
+                  locations:
+                    - city: "San Francisco"
+                    - city: "London"
+                  specialties:
+                    - "Artificial Intelligence"
+                    - "AI Safety"
+                  funding:
+                    total_usd: 14300000000
+                    last_round:
+                      type: "Series F"
+                      amount_usd: 3500000000
+                      date: "2026-03"
+                  scraped_at: "2026-07-07T14:00:03Z"
+                  followers_count: 1204800
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98417
+                  billed: true
+                  reason: "company_found"
+                  requestId: "req_4jd83mcy"
+                  latencyMs: 2950
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Company"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, or bad URL format."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, or bad URL format."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Target not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Target not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /companies/jobs-count:
+    post:
+      operationId: "companies-jobs-count"
+      summary: "Count company job openings"
+      description: "Return the number of active job postings a company has on LinkedIn."
+      tags:
+        - "Companies"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                domain:
+                  type: "string"
+                linkedin_id:
+                  type: "string"
+            example:
+              url: "https://linkedin.com/company/anthropic"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  url: "https://linkedin.com/company/anthropic"
+                  open_jobs_count: 87
+                  scraped_at: "2026-07-08T12:00:00Z"
+                  linkedin_id: "74126343"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CompanyJobsCountResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, or bad URL format."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, or bad URL format."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Company not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Company not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /companies/posts:
+    post:
+      operationId: "companies-posts"
+      summary: "Get company posts"
+      description: "List recent posts published by a company page."
+      tags:
+        - "Companies"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                domain:
+                  type: "string"
+                linkedin_id:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                max_results:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+            example:
+              url: "https://linkedin.com/company/anthropic"
+              page: 1
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  posts:
+                    - url: "https://www.linkedin.com/posts/anthropic_launch-activity-7267273010393358\
+                        336-ab12"
+                      urn: "7267273010393358336"
+                      author:
+                        name: "Anthropic"
+                        url: "https://www.linkedin.com/company/anthropicresearch/posts"
+                        headline: "1,204,800 followers"
+                      text: "Today we are announcing Claude 4, our most capable model yet."
+                      posted_at: "2026-07-06T18:45:00Z"
+                      reactions_count: 4200
+                      comments_count: 312
+                      reposts_count: 890
+                      scraped_at: "2026-07-08T12:00:00Z"
+                      share_urn: "7315779815297421316"
+                      media:
+                        - type: "image"
+                          url: "https://media.licdn.com/dms/image/v2/D4E22AQExample/feedshare-shrink_2048\
+                            _1536/0/claude"
+                  pagination:
+                    returned: 1
+                    max_results: 25
+                    pages_scraped: 1
+                    page: 1
+                    per_page: 25
+                    has_more: true
+                    total_estimate: 234
+                  pagination_token: "eyJwYWdlIjoyfQ"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CompanyPostsResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or an invalid
+            pagination_token."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or an invalid
+                    pagination_token."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover a full page."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover a full page."
+        "422":
+          description: "Company not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Company not found, private, deleted, or unreachable. Billed as 1
+                    credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /companies/headcount:
+    post:
+      operationId: "companies-headcount"
+      summary: "Find custom headcount"
+      description: "Count employees at a company matching title, seniority, location,
+        or keyword filters."
+      tags:
+        - "Companies"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                company_url:
+                  type: "string"
+                filters:
+                  type: "object"
+                  properties:
+                    titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    seniorities:
+                      type: "array"
+                      items:
+                        type: "string"
+                    locations:
+                      type: "array"
+                      items:
+                        type: "string"
+                    keywords:
+                      type: "string"
+              required:
+                - "url"
+                - "filters"
+            example:
+              url: "https://linkedin.com/company/anthropic"
+              filters:
+                titles:
+                  - "Software Engineer"
+                locations:
+                  - "United States"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  company_url: "https://linkedin.com/company/anthropic"
+                  count: 142
+                  filters_applied:
+                    titles:
+                      - "Software Engineer"
+                    locations:
+                      - "United States"
+                  scraped_at: "2026-07-08T12:00:00Z"
+                  linkedin_id: "74126343"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CompanyHeadcountResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Missing url or filters, both url and company_url sent, unknown
+            field, bad seniority value, more than 6 titles and seniorities
+            combined, or a location that matches no place."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing url or filters, both url and company_url sent, unknown field,
+                    bad seniority value, more than 6 titles and seniorities
+                    combined, or a location that matches no place."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Company not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Company not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /jobs/enrich:
+    post:
+      operationId: "jobs-enrich"
+      summary: "Enrich a job"
+      description: "Fetch full details for a single LinkedIn job posting, including
+        the description and company."
+      tags:
+        - "Jobs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                job_id:
+                  type: "string"
+            example:
+              url: "https://www.linkedin.com/jobs/view/4470130770"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  url: "https://www.linkedin.com/jobs/view/4470130770"
+                  title: "Full-Stack Agentic Engineer (focus on Backend)"
+                  company:
+                    name: "Apoddo"
+                    url: "https://www.linkedin.com/company/apoddo-llp"
+                    linkedin_id: "11571939"
+                    industry: "Software Development"
+                    logo_url: "https://media.licdn.com/dms/image/v2/D4D0BAQExample/company-logo_400\
+                      _400/0/apoddo_llp_logo"
+                  location: "Serbia"
+                  posted_at: "2026-09-25T09:22:27.000Z"
+                  description_snippet: "Apoddo is a software development-as-a-service company. We
+                    specialize in providing software development services to
+                    small and medium-sized businesses in the United States..."
+                  job_id: "4470130770"
+                  description: "Apoddo is a software development-as-a-service company. We
+                    specialize in providing software development services to
+                    small and medium-sized businesses in the United States. ..."
+                  employment_type: "Full-time"
+                  scraped_at: "2026-09-25T21:55:52.000Z"
+                  job_state: "LISTED"
+                  expires_at: "2027-03-24T09:22:27.000Z"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "job_found"
+                  requestId: "req_example"
+                  latencyMs: 2100
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/JobDetail"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Missing url and job_id, unknown field, a URL that is not a
+            LinkedIn job URL, or a non-numeric job_id."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing url and job_id, unknown field, a URL that is not a LinkedIn
+                    job URL, or a non-numeric job_id."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Job not found, removed, or unreachable. Billed as 1 credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Job not found, removed, or unreachable. Billed as 1 credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/jobs:
+    post:
+      operationId: "search-jobs"
+      summary: "Search jobs"
+      description: "Live LinkedIn job postings by company, keyword, and filters."
+      tags:
+        - "Jobs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                company_url:
+                  type: "string"
+                keywords:
+                  type: "array"
+                  items:
+                    type: "string"
+                filters:
+                  type: "object"
+                  properties:
+                    locations:
+                      type: "array"
+                      items:
+                        type: "string"
+                    seniority:
+                      type: "array"
+                      items:
+                        type: "string"
+                    function:
+                      type: "array"
+                      items:
+                        type: "string"
+                    workplace_type:
+                      type: "array"
+                      items:
+                        type: "string"
+                    posted_within_days:
+                      type: "integer"
+                max_results:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                page:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+            example:
+              keywords:
+                - "golang"
+              filters:
+                workplace_type:
+                  - "remote"
+                posted_within_days: 7
+              max_results: 25
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  jobs:
+                    - url: "https://www.linkedin.com/jobs/view/4470130770"
+                      title: "Full-Stack Agentic Engineer (focus on Backend)"
+                      company:
+                        name: "Apoddo"
+                        url: "https://www.linkedin.com/company/apoddo-llp"
+                        linkedin_id: "11571939"
+                        logo_url: "https://media.licdn.com/dms/image/v2/D4D0BAQExample/company-logo_200\
+                          _200/0/apoddo_llp_logo"
+                      location: "Serbia (Remote)"
+                      posted_at: "2026-09-25T09:22:27.000Z"
+                      workplace_type: "remote"
+                      description_snippet: "Apoddo is a software development-as-a-service company..."
+                      job_id: "4470130770"
+                      employment_type: "full-time"
+                meta:
+                  creditsUsed: 25
+                  creditsRemaining: 98394
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 21000
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/JobPosting"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Unknown field, bad enum value, unknown function, or a location or
+            company that matches nothing."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Unknown field, bad enum value, unknown function, or a location or
+                    company that matches nothing."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover max_results jobs."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover max_results jobs."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "LinkedIn rejected the search query, or something broke on the
+            server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_error"
+                  message: "LinkedIn rejected the search query, or something broke on the server
+                    side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /posts/enrich:
+    post:
+      operationId: "posts-enrich"
+      summary: "Enrich a post"
+      description: "Fetch one LinkedIn post by URL: full text plus live engagement."
+      tags:
+        - "Posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                urn:
+                  type: "string"
+            example:
+              url: "https://linkedin.com/posts/ceo_launch-activity-7215"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  url: "https://linkedin.com/posts/ceo_launch-activity-7215"
+                  urn: "7267273010393358336"
+                  share_urn: "urn:li:share:7315779815297421316"
+                  author:
+                    name: "Jane Doe"
+                    url: "https://www.linkedin.com/in/janedoe?miniProfileUrn=urn%3Ali%3Afsd_profile\
+                      %3AACoAABOPHB8BM6example"
+                    headline: "CEO at Example"
+                  text: "Today we're launching..."
+                  posted_at: "2026-07-06T18:45:00Z"
+                  reactions_count: 1204
+                  comments_count: 187
+                  reposts_count: 96
+                  scraped_at: "2026-07-07T14:00:02Z"
+                  media:
+                    - type: "image"
+                      url: "https://media.licdn.com/..."
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "post_found"
+                  requestId: "req_pe73mm1q"
+                  latencyMs: 2100
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Post"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, unknown field, or bad URL format."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, or bad URL format."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the call."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the call."
+        "422":
+          description: "Target not found, private, deleted, or unreachable."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Target not found, private, deleted, or unreachable."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/posts:
+    post:
+      operationId: "search-posts"
+      summary: "Search posts"
+      description: "Live LinkedIn post search by keyword, hashtag, or author."
+      tags:
+        - "Posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                keywords:
+                  type: "array"
+                  items:
+                    type: "string"
+                hashtags:
+                  type: "array"
+                  items:
+                    type: "string"
+                author_url:
+                  type: "string"
+                author_urn:
+                  type: "string"
+                posted_within:
+                  type: "string"
+                sort:
+                  type: "string"
+                max_results:
+                  type: "integer"
+            example:
+              keywords:
+                - "ai agents"
+              posted_within: "week"
+              sort: "recent"
+              max_results: 25
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  posts:
+                    - url: "https://www.linkedin.com/posts/katykeim_gtm-teams-are-losing-track-of-the\
+                        ir-ai-agents-activity-7509369170732507138-zjBG"
+                      urn: "7509369170732507138"
+                      share_urn: "urn:li:share:7509369169658908672"
+                      author:
+                        name: "Katy Keim"
+                        url: "https://www.linkedin.com/in/katykeim"
+                        headline: "CEO, LeanData | CMO | Independent Board Member"
+                      text: "MarTech's take on our latest LeanData research: What happens when your
+                        organization has so many agents at work that you start
+                        losing track of them?"
+                      posted_at: "2026-09-25T21:49:51.000Z"
+                      reactions_count: 0
+                      comments_count: 0
+                      reposts_count: 0
+                      scraped_at: "2026-09-25T21:52:56.000Z"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 4700
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Post"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "None of keywords, hashtags, author_url, or author_urn, both
+            author_url and author_urn, unknown field, or a bad enum value."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "None of keywords, hashtags, author_url, or author_urn, both author_url
+                    and author_urn, unknown field, or a bad enum value."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "422":
+          description: "The author profile is not found, private, or unreachable. Billed
+            as 1 credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "The author profile is not found, private, or unreachable. Billed as 1
+                    credit."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "LinkedIn rejected the search query, or something broke on the
+            server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_error"
+                  message: "LinkedIn rejected the search query, or something broke on the server
+                    side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /posts/engagement/comments:
+    post:
+      operationId: "posts-engagement-comments"
+      summary: "Get post comments"
+      description: "Inbound engagement on a post - who commented, with profile stubs."
+      tags:
+        - "Posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                urn:
+                  type: "string"
+                url:
+                  type: "string"
+                share_urn:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                max_results:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+            example:
+              urn: "7267273010393358336"
+              page: 1
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  comments:
+                    - text: "Great insights on automation!"
+                      posted_at: "2026-07-06T19:02:00Z"
+                      commenter:
+                        url: "https://linkedin.com/in/janedoe"
+                        full_name: "Jane Doe"
+                        headline: "VP Marketing at Acme Corp"
+                        urn: "ACoAABOPHB8BM6example"
+                      replies_count: 2
+                  pagination:
+                    returned: 1
+                    max_results: 25
+                    pages_scraped: 1
+                    page: 1
+                    per_page: 25
+                    has_more: true
+                    total_estimate: 93
+                  pagination_token: "eyJwYWdlIjoyfQ.signature"
+                  urn: "7267273010393358336"
+                  share_urn: "7267273010393358336"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or a
+            pagination_token that does not match the request."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or a pagination_token
+                    that does not match the request."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover a full page."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover a full page."
+        "422":
+          description: "Post not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Post not found, private, deleted, or unreachable. Billed as 1 credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /posts/engagement/reactions:
+    post:
+      operationId: "posts-engagement-reactions"
+      summary: "Get post reactions"
+      description: "Inbound engagement on a post - who reacted, filterable by reaction
+        type."
+      tags:
+        - "Posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                urn:
+                  type: "string"
+                url:
+                  type: "string"
+                share_urn:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                max_results:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+                reaction_type:
+                  type: "string"
+            example:
+              urn: "7267273010393358336"
+              reaction_type: "ALL"
+              page: 1
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  reactions:
+                    - reaction_type: "LIKE"
+                      reacted_at: null
+                      reactor:
+                        url: "https://linkedin.com/in/janedoe"
+                        full_name: "Jane Doe"
+                        headline: "VP Marketing at Acme Corp"
+                        urn: "ACoAABOPHB8BM6example"
+                  pagination:
+                    returned: 1
+                    max_results: 25
+                    pages_scraped: 1
+                    page: 1
+                    per_page: 25
+                    has_more: true
+                    total_estimate: 93
+                  pagination_token: "eyJwYWdlIjoyfQ.signature"
+                  urn: "7267273010393358336"
+                  share_urn: "7267273010393358336"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or a
+            pagination_token that does not match the request."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or a pagination_token
+                    that does not match the request."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover a full page."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover a full page."
+        "422":
+          description: "Post not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Post not found, private, deleted, or unreachable. Billed as 1 credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /posts/engagement/reposts:
+    post:
+      operationId: "posts-engagement-reposts"
+      summary: "Get post reposts"
+      description: "Inbound engagement on a post - who reposted it."
+      tags:
+        - "Posts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                urn:
+                  type: "string"
+                url:
+                  type: "string"
+                share_urn:
+                  type: "string"
+                page:
+                  type: "integer"
+                per_page:
+                  type: "integer"
+                max_results:
+                  type: "integer"
+                pagination_token:
+                  type: "string"
+            example:
+              urn: "7267273010393358336"
+              page: 1
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  reposts:
+                    - reposted_at: "2026-07-06T19:10:00.000Z"
+                      reposter:
+                        url: "https://linkedin.com/in/janedoe"
+                        full_name: "Jane Doe"
+                        urn: "ACoAABOPHB8BM6example"
+                        headline: "VP Marketing at Acme Corp"
+                      url: "https://linkedin.com/feed/update/urn:li:activity:7267273010393358999"
+                      text: "Worth sharing"
+                  pagination:
+                    page: 1
+                    per_page: 25
+                    returned: 1
+                    has_more: false
+                  pagination_token: null
+                  urn: "7267273010393358336"
+                  share_urn: "7267273010393358336"
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98419
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2100
+        "400":
+          description: "Malformed body, unknown field, bad URL format, or a
+            pagination_token that does not match the request."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown field, bad URL format, or a pagination_token
+                    that does not match the request."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover a full page."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover a full page."
+        "422":
+          description: "Post not found, private, deleted, or unreachable. Billed as 1
+            credit."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "unprocessable_target"
+                  message: "Post not found, private, deleted, or unreachable. Billed as 1 credit."
+        "429":
+          description: "Over the 300 requests/min per-key limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min per-key limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/people:
+    post:
+      operationId: "search-people"
+      summary: "Search people"
+      description: "Live people search with structured filters."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    past_titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    seniorities:
+                      type: "array"
+                      items:
+                        type: "string"
+                    function_ids:
+                      type: "array"
+                      items:
+                        type: "string"
+                    company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    past_company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_sizes:
+                      type: "array"
+                      items:
+                        type: "string"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    school_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    years_of_experience:
+                      type: "array"
+                      items:
+                        type: "string"
+                    years_at_current_company:
+                      type: "array"
+                      items:
+                        type: "string"
+                    years_in_current_position:
+                      type: "array"
+                      items:
+                        type: "string"
+                    first_name:
+                      type: "string"
+                    last_name:
+                      type: "string"
+                    posted_on_linkedin:
+                      type: "boolean"
+                    recently_changed_jobs:
+                      type: "boolean"
+                max_results:
+                  type: "integer"
+              required:
+                - "filters"
+            example:
+              filters:
+                titles:
+                  - "CTO"
+                keywords: "kubernetes"
+              max_results: 10
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/in/ACwAAAtrDxoBpU0UuxqsRapB-BUxVWrU38-8c0g"
+                      full_name: "Tong Zhi"
+                      location:
+                        city: "London"
+                        region: "England"
+                        country: "United Kingdom"
+                      positions:
+                        - title: "Co-Founder & CTO"
+                          company: "HireHarbour"
+                          company_url: "https://www.linkedin.com/company/100124585"
+                          linkedin_id: "100124585"
+                          started_at: "2023-10"
+                          ended_at: null
+                          description: "Helping businesses by finding experienced, high quality remote
+                            staff."
+                      current_company:
+                        name: "HireHarbour"
+                        url: "https://www.linkedin.com/company/100124585"
+                        linkedin_id: "100124585"
+                        title: "Co-Founder & CTO"
+                        started_at: "2023-10"
+                      is_premium: true
+                  pagination:
+                    returned: 10
+                    max_results: 10
+                    pages_scraped: 1
+                    has_more: true
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2800
+                  resolved_search_url: "https://www.linkedin.com/search/results/people/?origin=FA\
+                    CETED_SEARCH&keywords=kubernetes&titleFreeText=CTO"
+        "400":
+          description: "Missing or empty filters, unknown filter, or bad enum value."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing or empty filters, unknown filter, or bad enum value."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/people/sales-nav:
+    post:
+      operationId: "search-people-sales-nav"
+      summary: "Search people (Sales Navigator)"
+      description: "Search people with structured filters or a pasted Sales Navigator URL."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    past_titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    seniorities:
+                      type: "array"
+                      items:
+                        type: "string"
+                    function_ids:
+                      type: "array"
+                      items:
+                        type: "string"
+                    company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    past_company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_sizes:
+                      type: "array"
+                      items:
+                        type: "string"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    school_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    years_of_experience:
+                      type: "array"
+                      items:
+                        type: "string"
+                    years_at_current_company:
+                      type: "array"
+                      items:
+                        type: "string"
+                    years_in_current_position:
+                      type: "array"
+                      items:
+                        type: "string"
+                    first_name:
+                      type: "string"
+                    last_name:
+                      type: "string"
+                    posted_on_linkedin:
+                      type: "boolean"
+                    recently_changed_jobs:
+                      type: "boolean"
+                sales_nav_url:
+                  type: "string"
+                max_results:
+                  type: "integer"
+            example:
+              filters:
+                titles:
+                  - "VP Sales"
+                seniorities:
+                  - "vp"
+                  - "director"
+                location_ids:
+                  - id: "102095887"
+                    text: "California"
+                company_sizes:
+                  - "51-200"
+                  - "201-500"
+              max_results: 50
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/in/ACwAAAtrDxoBpU0UuxqsRapB-BUxVWrU38-8c0g"
+                      full_name: "Tong Zhi"
+                      location:
+                        city: "London"
+                        region: "England"
+                        country: "United Kingdom"
+                      positions:
+                        - title: "Co-Founder & CTO"
+                          company: "HireHarbour"
+                          company_url: "https://www.linkedin.com/company/100124585"
+                          linkedin_id: "100124585"
+                          started_at: "2023-10"
+                          ended_at: null
+                          description: "Helping businesses by finding experienced, high quality remote
+                            staff."
+                      current_company:
+                        name: "HireHarbour"
+                        url: "https://www.linkedin.com/company/100124585"
+                        linkedin_id: "100124585"
+                        title: "Co-Founder & CTO"
+                        started_at: "2023-10"
+                      is_premium: true
+                  pagination:
+                    returned: 10
+                    max_results: 10
+                    pages_scraped: 1
+                    has_more: true
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 2800
+                  resolved_search_url: "https://www.linkedin.com/sales/search/people?query=(spell\
+                    CorrectionEnabled:true,filters:List((type:CURRENT_TITLE,val\
+                    ues:List((text:CTO,selectionType:INCLUDED)))),keywords:kube\
+                    rnetes)"
+        "400":
+          description: "Malformed body, unknown filter, bad enum value, or both/neither of
+            filters and sales_nav_url provided."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown filter, bad enum value, or both/neither of
+                    filters and sales_nav_url provided."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/people/standard:
+    post:
+      operationId: "search-people-standard"
+      summary: "Search people (standard)"
+      description: "People search on LinkedIn's regular search, not Sales Navigator."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    titles:
+                      type: "array"
+                      items:
+                        type: "string"
+                    seniorities:
+                      type: "array"
+                      items:
+                        type: "string"
+                    company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_urls:
+                      type: "array"
+                      items:
+                        type: "string"
+                    past_company_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    locations:
+                      type: "array"
+                      items:
+                        type: "string"
+                    school_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    first_name:
+                      type: "string"
+                    last_name:
+                      type: "string"
+                max_results:
+                  type: "integer"
+              required:
+                - "filters"
+            example:
+              filters:
+                titles:
+                  - "CTO"
+                keywords: "kubernetes"
+                locations:
+                  - "United States"
+              max_results: 25
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/in/thmeyer"
+                      public_identifier: "thmeyer"
+                      linkedin_id: "16113090"
+                      urn: "ACoAAAD13cIBbJUHDIuBAw-cS8NSsTdXj2fAYtc"
+                      full_name: "Thomas Meyer"
+                      headline: "CTO / Software Architect at Inalp"
+                      profile_picture_url: "https://media.licdn.com/dms/image/v2/D4E03AQExample/profi\
+                        le-displayphoto-shrink_100_100/0/thmeyer"
+                      location:
+                        city: "Greater Bern Area"
+                      scraped_at: "2026-09-25T21:52:56.000Z"
+                  pagination:
+                    returned: 25
+                    max_results: 25
+                    pages_scraped: 1
+                    has_more: true
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 4100
+        "400":
+          description: "Missing or empty filters, unknown or unsupported filter, bad
+            seniority value, more than 6 titles and seniorities combined, or a
+            location or company that matches nothing."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing or empty filters, unknown or unsupported filter, bad seniority
+                    value, more than 6 titles and seniorities combined, or a
+                    location or company that matches nothing."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "LinkedIn rejected the search query, or something broke on the
+            server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_error"
+                  message: "LinkedIn rejected the search query, or something broke on the server
+                    side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/companies:
+    post:
+      operationId: "search-companies"
+      summary: "Search companies"
+      description: "Live company search with structured filters."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_sizes:
+                      type: "array"
+                      items:
+                        type: "string"
+                max_results:
+                  type: "integer"
+              required:
+                - "filters"
+            example:
+              filters:
+                industry_ids:
+                  - "96"
+                company_sizes:
+                  - "201-500"
+              max_results: 50
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/company/fintechfutures"
+                      name: "FinTech Futures"
+                      linkedin_id: "5216302"
+                      industry: "Technology, Information and Media"
+                      scraped_at: "2026-09-26T13:45:43.000Z"
+                  pagination:
+                    returned: 50
+                    max_results: 50
+                    pages_scraped: 2
+                    has_more: true
+                meta:
+                  creditsUsed: 2
+                  creditsRemaining: 98415
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 4100
+                  resolved_search_url: "https://www.linkedin.com/search/results/companies/?origin\
+                    =FACETED_SEARCH&industryCompanyVertical=%5B%2296%22%5D&comp\
+                    anySize=%5B%22E%22%5D"
+        "400":
+          description: "Missing or empty filters, unknown filter, or bad enum value."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing or empty filters, unknown filter, or bad enum value."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/companies/sales-nav:
+    post:
+      operationId: "search-companies-sales-nav"
+      summary: "Search companies (Sales Navigator)"
+      description: "Search companies with structured filters or a pasted Sales
+        Navigator URL."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_sizes:
+                      type: "array"
+                      items:
+                        type: "string"
+                sales_nav_url:
+                  type: "string"
+                max_results:
+                  type: "integer"
+            example:
+              filters:
+                industry_ids:
+                  - "96"
+                company_sizes:
+                  - "201-500"
+              max_results: 50
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/company/74126343"
+                      name: "Anthropic"
+                      linkedin_id: "74126343"
+                      industry: "Research Services"
+                      description: "AI safety and research company."
+                      headcount: 2841
+                      company_size:
+                        min: 1001
+                        max: 5000
+                      scraped_at: "2026-07-08T12:00:00Z"
+                  pagination:
+                    returned: 50
+                    max_results: 50
+                    pages_scraped: 2
+                    has_more: true
+                meta:
+                  creditsUsed: 2
+                  creditsRemaining: 98415
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 4100
+                  resolved_search_url: "https://www.linkedin.com/sales/search/company?query=(filt\
+                    ers:List((type:COMPANY_HEADCOUNT,values:List((id:E,text:201\
+                    -500,selectionType:INCLUDED))),(type:INDUSTRY,values:List((\
+                    id:96,selectionType:INCLUDED)))))"
+        "400":
+          description: "Malformed body, unknown filter, bad enum value, or both/neither of
+            filters and sales_nav_url provided."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, unknown filter, bad enum value, or both/neither of
+                    filters and sales_nav_url provided."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /search/companies/standard:
+    post:
+      operationId: "search-companies-standard"
+      summary: "Search companies (standard)"
+      description: "Company search on LinkedIn's regular search, not Sales Navigator."
+      tags:
+        - "Search"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                filters:
+                  type: "object"
+                  properties:
+                    keywords:
+                      type: "string"
+                    industry_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    location_ids:
+                      type: "array"
+                      items:
+                        type:
+                          - "string"
+                          - "object"
+                        description: "FacetId"
+                    company_sizes:
+                      type: "array"
+                      items:
+                        type: "string"
+                max_results:
+                  type: "integer"
+              required:
+                - "filters"
+            example:
+              filters:
+                keywords: "fintech"
+                company_sizes:
+                  - "51-200"
+                industry_ids:
+                  - "4"
+              max_results: 25
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  results:
+                    - url: "https://www.linkedin.com/company/pharos-production-web3-software-developm\
+                        ent"
+                      name: "Pharos Production"
+                      linkedin_id: "9226307"
+                      industry: "Software Development"
+                      description: "Custom AI, FinTech, Web3 and enterprise software | 110+ apps since
+                        2013 | 5/5 on Clutch"
+                      hq:
+                        city: "Las Vegas"
+                        region: "Nevada"
+                      scraped_at: "2026-09-25T21:52:56.000Z"
+                      logo_url: "https://media.licdn.com/dms/image/v2/D4D0BAQExample/company-logo_100\
+                        _100/0/pharos_production_logo"
+                  pagination:
+                    returned: 16
+                    max_results: 25
+                    pages_scraped: 1
+                    has_more: false
+                meta:
+                  creditsUsed: 1
+                  creditsRemaining: 98418
+                  billed: true
+                  reason: "success"
+                  requestId: "req_example"
+                  latencyMs: 3100
+                  resolved_search_url: "https://www.linkedin.com/search/results/companies/?origin\
+                    =FACETED_SEARCH&keywords=fintech&industryCompanyVertical=%5\
+                    B%224%22%5D&companySize=%5B%22D%22%5D"
+        "400":
+          description: "Missing or empty filters, unknown or unsupported filter, or a bad
+            company_sizes value."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Missing or empty filters, unknown or unsupported filter, or a bad
+                    company_sizes value."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the page(s) requested."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the page(s) requested."
+        "429":
+          description: "Over the 300 requests/min limit, or the 20 searches/hour
+            per-organization quota. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit, or the 20 searches/hour
+                    per-organization quota. Honor Retry-After."
+        "500":
+          description: "LinkedIn rejected the search query, or something broke on the
+            server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_error"
+                  message: "LinkedIn rejected the search query, or something broke on the server
+                    side."
+        "504":
+          description: "The live scrape didn't complete in time."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "upstream_timeout"
+                  message: "The live scrape didn't complete in time."
+  /batch:
+    post:
+      operationId: "batch-create"
+      summary: "Create a batch job"
+      description: "Submit up to 1,000 mixed enrich and search items as one
+        asynchronous job."
+      tags:
+        - "Batch"
+      parameters:
+        - name: "Idempotency-Key"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+          description: "Optional. A retried submission with the same key returns the
+            original job; no duplicate is created."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: "object"
+              properties:
+                items:
+                  type: "array"
+                  items:
+                    type: "object"
+                    properties:
+                      type:
+                        type: "string"
+                      url:
+                        type: "string"
+                      operation:
+                        type: "string"
+                      body:
+                        type: "object"
+                webhook_url:
+                  type: "string"
+              required:
+                - "items"
+            example:
+              items:
+                - type: "profile"
+                  url: "https://linkedin.com/in/a"
+                - type: "profile"
+                  url: "https://linkedin.com/in/b"
+                - type: "company"
+                  url: "https://linkedin.com/company/acme"
+              webhook_url: "https://app.example.com/hooks/uptodata"
+      responses:
+        "202":
+          description: "202 response"
+          content:
+            application/json:
+              example:
+                data:
+                  job_id: "job_7hd92kfa"
+                  status: "processing"
+                  total: 3
+                  estimated_completion: "2026-07-07T14:03:00Z"
+                meta:
+                  creditsUsed: 3
+                  creditsRemaining: 98416
+                  billed: true
+                  reason: "job_accepted"
+                  requestId: "req_0pl2m8xz"
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/BatchJob"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "Malformed body, an item missing type/url or operation/body, or
+            more than 1,000 items."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "Malformed body, an item missing type/url or operation/body, or more
+                    than 1,000 items."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "402":
+          description: "Balance can't cover the credits this submission would charge."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "insufficient_credits"
+                  message: "Balance can't cover the credits this submission would charge."
+        "429":
+          description: "Over the 300 requests/min limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+  /batch/{job_id}:
+    get:
+      operationId: "batch-get"
+      summary: "Get a batch job"
+      description: "Poll a batch job for its status and accumulated results, for free."
+      tags:
+        - "Batch"
+      parameters:
+        - name: "job_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Path parameter. The job_id returned by POST /batch."
+          example: "job_7hd92kfa"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  job_id: "job_7hd92kfa"
+                  status: "completed"
+                  total: 1000
+                  succeeded: 968
+                  failed: 32
+                  results:
+                    - type: "profile"
+                      url: "https://linkedin.com/in/a"
+                      status: "ok"
+                      data:
+                        full_name: "..."
+                        headline: "..."
+                    - type: "company"
+                      url: "https://linkedin.com/company/acme"
+                      status: "ok"
+                      data:
+                        name: "Acme"
+                        headcount: 512
+                  failures:
+                    - type: "profile"
+                      url: "https://linkedin.com/in/gone"
+                      status: "unprocessable_target"
+                    - type: "company"
+                      url: "https://linkedin.com/company/timed-out"
+                      status: "upstream_timeout"
+                meta:
+                  creditsUsed: 1000
+                  creditsRemaining: 421012
+                  billed: true
+                  reason: "job_completed"
+                  requestId: "req_v82n1kd0"
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/BatchJobResult"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "404":
+          description: "No job with this job_id."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "not_found"
+                  message: "No job with this job_id."
+        "429":
+          description: "Over the 300 requests/min limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+  /batch/{job_id}/results:
+    get:
+      operationId: "batch-results"
+      summary: "Get incremental batch result entries"
+      description: "Read a batch job's result entries as an incremental, cursor-paged feed."
+      tags:
+        - "Batch"
+      parameters:
+        - name: "job_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+          description: "Path parameter. The job_id returned by POST /batch."
+          example: "job_7hd92kfa"
+        - name: "cursor"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+          description: "Query parameter. Opaque delivery_seq cursor from a prior response.
+            Omit for the first page."
+          example: "eyJkZWxpdmVyeV9zZXEiOjJ9"
+        - name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+          description: "Query parameter. 1 to 1,000, default 100."
+          example: 100
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  job_id: "job_7hd92kfa"
+                  status: "processing"
+                  results_available: 3
+                  entries:
+                    - delivery_seq: 3
+                      item_index: 2
+                      entry_key: "https://linkedin.com/in/c"
+                      data:
+                        full_name: "Sam Example"
+                        headline: "VP Sales at Example Corp"
+                        url: "https://linkedin.com/in/c"
+                      final_rank: 2
+                  next_cursor: "eyJkZWxpdmVyeV9zZXEiOjN9"
+                  has_more: true
+                  recommended_poll_ms: 2000
+                meta:
+                  creditsUsed: 0
+                  creditsRemaining: 421032
+                  billed: false
+                  reason: "poll"
+                  requestId: "req_example"
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/BatchResultPage"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "400":
+          description: "A malformed cursor, or limit out of the 1 to 1,000 range."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_request"
+                  message: "A malformed cursor, or limit out of the 1 to 1,000 range."
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "404":
+          description: "No job with this job_id."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "not_found"
+                  message: "No job with this job_id."
+        "429":
+          description: "Over the 300 requests/min limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the 300 requests/min limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+  /account:
+    get:
+      operationId: "account-get"
+      summary: "Get account"
+      description: "Balance, tier, monthly credit usage, and rate limits, for free."
+      tags:
+        - "Account"
+      responses:
+        "200":
+          description: "200 response"
+          content:
+            application/json:
+              example:
+                data:
+                  account_id: "64f1c2a9e4b0a1d2c3e4f5a6"
+                  tier: "growth"
+                  credits_remaining: 98413
+                  credits_used_this_month: 41587
+                  price_per_1k_credits_usd: 1.25
+                  rate_limit:
+                    requests_per_minute: 300
+                    concurrent_batch_jobs: 100
+                    searches_per_hour: 20
+                    searches_remaining_this_hour: 17
+                  signals:
+                    active: 0
+                    paused: 0
+                    max_active: 5000
+                    estimated_monthly_credits: 0
+                  monitoring:
+                    default_webhook_url: null
+                    monthly_check_budget: 10000
+                    checks_spent_this_month: 0
+                meta:
+                  creditsUsed: 0
+                  creditsRemaining: 98413
+                  billed: false
+                  reason: "success"
+                  requestId: "req_ac10mmd2"
+              schema:
+                type: "object"
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Account"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "401":
+          description: "Missing, malformed, or revoked key."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "invalid_api_key"
+                  message: "Missing, malformed, or revoked key."
+        "429":
+          description: "Over the per-key requests/min limit. Honor Retry-After."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "rate_limited"
+                  message: "Over the per-key requests/min limit. Honor Retry-After."
+        "500":
+          description: "Something broke on the server side."
+          content:
+            application/json:
+              example:
+                error:
+                  type: "internal_error"
+                  message: "Something broke on the server side."
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: "apiKey"
+      in: "header"
+      name: "X-API-Key"
+  schemas:
+    Profile:
+      description: "A full live LinkedIn profile record, as returned by profile enrich
+        and batch profile items."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        public_identifier:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        full_name:
+          type: "string"
+        headline:
+          type: "string"
+        location:
+          type: "object"
+          properties:
+            city:
+              type: "string"
+            region:
+              type: "string"
+            country:
+              type: "string"
+        current_company:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            title:
+              type: "string"
+            started_at:
+              type: "string"
+            linkedin_id:
+              type: "string"
+            logo_url:
+              type: "string"
+            industry:
+              type: "string"
+            headcount:
+              type: "string"
+        positions:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title:
+                type: "string"
+              company:
+                type: "string"
+              company_url:
+                type: "string"
+              linkedin_id:
+                type: "string"
+              position_id:
+                type: "string"
+              started_at:
+                type: "string"
+              ended_at:
+                type:
+                  - "string"
+                  - "null"
+              description:
+                type: "string"
+              skills:
+                type: "array"
+                items:
+                  type: "string"
+              company_industry:
+                type: "string"
+              company_headcount:
+                type: "string"
+              company_logo_url:
+                type: "string"
+        education:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              school:
+                type: "string"
+              degree:
+                type: "string"
+              field:
+                type: "string"
+              activities:
+                type: "string"
+              education_id:
+                type: "string"
+              school_logo_url:
+                type: "string"
+        skills:
+          type: "array"
+          items:
+            type: "string"
+        skill_endorsements:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+              endorsement_count:
+                type: "integer"
+        about:
+          type: "string"
+        email:
+          type: "string"
+        phone:
+          type: "string"
+        urn:
+          type: "string"
+        profile_urn:
+          type: "string"
+        languages:
+          type: "array"
+          items:
+            type: "string"
+        certifications:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+              authority:
+                type: "string"
+              issued_at:
+                type: "string"
+              expires_at:
+                type: "string"
+              url:
+                type: "string"
+              linkedin_id:
+                type: "string"
+              license_number:
+                type: "string"
+        publications:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title:
+                type: "string"
+              publisher:
+                type: "string"
+              published_at:
+                type: "string"
+              url:
+                type: "string"
+        patents:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title:
+                type: "string"
+              number:
+                type: "string"
+              issued_at:
+                type: "string"
+        awards:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title:
+                type: "string"
+              issuer:
+                type: "string"
+              issued_at:
+                type: "string"
+        interests:
+          type: "array"
+          items:
+            type: "string"
+        projects:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+              title:
+                type: "string"
+              description:
+                type: "string"
+              url:
+                type: "string"
+              started_at:
+                type: "string"
+              ended_at:
+                type:
+                  - "string"
+                  - "null"
+        recommendations:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        primary_locale:
+          type: "string"
+        is_premium:
+          type: "boolean"
+        is_verified:
+          type: "boolean"
+        is_open_profile:
+          type: "boolean"
+        is_open_to_work:
+          type: "boolean"
+        job_preferences:
+          type: "object"
+          properties:
+            titles:
+              type: "array"
+              items:
+                type: "string"
+            locations:
+              type: "array"
+              items:
+                type: "string"
+            workplace_types:
+              type: "array"
+              items:
+                type: "string"
+            start_timing:
+              type: "string"
+        connections_count:
+          type: "integer"
+        followers_count:
+          type: "integer"
+        scraped_at:
+          type: "string"
+        profile_picture_url:
+          type: "string"
+    Company:
+      description: "Live firmographics for a LinkedIn company page, as returned by
+        company enrich and batch company items."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        name:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        website:
+          type: "string"
+        description:
+          type: "string"
+        industry:
+          type: "string"
+        headcount:
+          type: "integer"
+        headcount_growth_6m:
+          type: "number"
+        company_size:
+          type: "object"
+          properties:
+            min:
+              type: "integer"
+            max:
+              type: "integer"
+        founded:
+          type: "integer"
+        hq:
+          type: "object"
+          properties:
+            city:
+              type: "string"
+            region:
+              type: "string"
+            country:
+              type: "string"
+        locations:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              city:
+                type: "string"
+              region:
+                type: "string"
+              country:
+                type: "string"
+        specialties:
+          type: "array"
+          items:
+            type: "string"
+        funding:
+          type: "object"
+          properties:
+            total_usd:
+              type: "integer"
+            last_round:
+              type: "object"
+              properties:
+                type:
+                  type: "string"
+                amount_usd:
+                  type: "integer"
+                date:
+                  type: "string"
+        scraped_at:
+          type: "string"
+        followers_count:
+          type: "integer"
+    Post:
+      description: "A single LinkedIn post with live engagement counts, as returned by
+        post enrich, batch post items, and profile activity (kind posts or
+        reposts)."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        urn:
+          type: "string"
+        share_urn:
+          type: "string"
+        author:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            headline:
+              type: "string"
+        text:
+          type: "string"
+        posted_at:
+          type: "string"
+        reactions_count:
+          type: "integer"
+        comments_count:
+          type: "integer"
+        reposts_count:
+          type: "integer"
+        scraped_at:
+          type: "string"
+        media:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              type:
+                type: "string"
+              url:
+                type: "string"
+    LeadResult:
+      description: "One people search result from Sales Navigator, as returned by
+        search people, Sales Navigator people search, and batch people search
+        items. Pipe url into profile enrich for the full record."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        full_name:
+          type: "string"
+        location:
+          type: "object"
+          properties:
+            city:
+              type: "string"
+            region:
+              type: "string"
+            country:
+              type: "string"
+        positions:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              title:
+                type: "string"
+              company:
+                type: "string"
+              company_url:
+                type: "string"
+              linkedin_id:
+                type: "string"
+              started_at:
+                type: "string"
+              ended_at:
+                type: "string"
+                description: "null"
+              description:
+                type: "string"
+              company_industry:
+                type: "string"
+        current_company:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            linkedin_id:
+              type: "string"
+            title:
+              type: "string"
+            started_at:
+              type: "string"
+            logo_url:
+              type: "string"
+            industry:
+              type: "string"
+        is_premium:
+          type: "boolean"
+        linkedin_id:
+          type: "string"
+        about:
+          type: "string"
+        urn:
+          type: "string"
+        is_open_profile:
+          type: "boolean"
+        profile_picture_url:
+          type: "string"
+        scraped_at:
+          type: "string"
+    AccountResult:
+      description: "One company search result from Sales Navigator, as returned by
+        Sales Navigator company search and batch company search items. Pipe url
+        into company enrich for the full record."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        name:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        industry:
+          type: "string"
+        description:
+          type: "string"
+        headcount:
+          type: "integer"
+        company_size:
+          type: "object"
+          properties:
+            min:
+              type: "integer"
+            max:
+              type: "integer"
+        scraped_at:
+          type: "string"
+    SearchPerson:
+      description: "One standard people search result: the identity and headline
+        LinkedIn's regular search shows. Pipe url into profile enrich or a batch
+        for the full record."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        public_identifier:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        urn:
+          type: "string"
+        full_name:
+          type: "string"
+        headline:
+          type: "string"
+        profile_picture_url:
+          type: "string"
+        location:
+          type: "object"
+          properties:
+            city:
+              type: "string"
+            region:
+              type: "string"
+            country:
+              type: "string"
+        scraped_at:
+          type: "string"
+    SearchCompany:
+      description: "One standard company search result: what LinkedIn's regular search
+        shows. Pipe url into company enrich or a batch for the full record."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        name:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        industry:
+          type: "string"
+        description:
+          type: "string"
+        hq:
+          type: "object"
+          properties:
+            city:
+              type: "string"
+            region:
+              type: "string"
+            country:
+              type: "string"
+        scraped_at:
+          type: "string"
+        logo_url:
+          type: "string"
+    JobPosting:
+      description: "One job search result."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        title:
+          type: "string"
+        company:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            linkedin_id:
+              type: "string"
+            logo_url:
+              type: "string"
+        location:
+          type: "string"
+        posted_at:
+          type: "string"
+        workplace_type:
+          type: "string"
+        description_snippet:
+          type: "string"
+        job_id:
+          type: "string"
+        employment_type:
+          type: "string"
+    JobDetail:
+      description: "The data object returned by job enrich: the JobPosting fields plus
+        the full description and posting state."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        title:
+          type: "string"
+        company:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            linkedin_id:
+              type: "string"
+            industry:
+              type: "string"
+            logo_url:
+              type: "string"
+        location:
+          type: "string"
+        posted_at:
+          type: "string"
+        description_snippet:
+          type: "string"
+        job_id:
+          type: "string"
+        description:
+          type: "string"
+        employment_type:
+          type: "string"
+        scraped_at:
+          type: "string"
+        job_state:
+          type: "string"
+        expires_at:
+          type: "string"
+        closed_at:
+          type: "string"
+    Recommendation:
+      description: "One LinkedIn recommendation, nested under a Profile."
+      type: "object"
+      properties:
+        text:
+          type: "string"
+        relationship:
+          type: "string"
+        created_at:
+          type:
+            - "string"
+            - "null"
+        person:
+          type: "object"
+          properties:
+            url:
+              type: "string"
+            full_name:
+              type: "string"
+            headline:
+              type: "string"
+            urn:
+              type: "string"
+    ProfileRecommendationsResult:
+      description: "The data object returned by profile recommendations: one block per
+        requested direction."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        public_identifier:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        urn:
+          type: "string"
+        direction:
+          type: "string"
+        scraped_at:
+          type: "string"
+        given:
+          type: "object"
+          properties:
+            recommendations:
+              type: "array"
+              items:
+                $ref: "#/components/schemas/Recommendation"
+            pagination:
+              $ref: "#/components/schemas/Pagination"
+        received:
+          type: "object"
+          properties:
+            recommendations:
+              type: "array"
+              items:
+                $ref: "#/components/schemas/Recommendation"
+            pagination:
+              $ref: "#/components/schemas/Pagination"
+    Interest:
+      description: "One entity a profile follows: a person, company, group,
+        newsletter, or school."
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        url:
+          type: "string"
+        urn:
+          type: "string"
+        headline:
+          type: "string"
+        followers_count:
+          type: "integer"
+        members_count:
+          type: "integer"
+        caption:
+          type: "string"
+        logo_url:
+          type: "string"
+    ProfileInterestsResult:
+      description: "The data object returned by profile interests: one block per
+        requested category."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        public_identifier:
+          type: "string"
+        linkedin_id:
+          type: "string"
+        urn:
+          type: "string"
+        category:
+          type: "string"
+        scraped_at:
+          type: "string"
+        <category>:
+          type: "object"
+          properties:
+            interests:
+              type: "array"
+              items:
+                $ref: "#/components/schemas/Interest"
+            pagination:
+              $ref: "#/components/schemas/Pagination"
+    CompanyJobsCountResult:
+      description: "The data object returned by count company job openings."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        open_jobs_count:
+          type: "integer"
+        scraped_at:
+          type: "string"
+        linkedin_id:
+          type: "string"
+    CompanyPostsResult:
+      description: "The data object returned by get company posts."
+      type: "object"
+      properties:
+        posts:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Post"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        pagination_token:
+          type:
+            - "string"
+            - "null"
+    CompanyHeadcountResult:
+      description: "The data object returned by find custom headcount."
+      type: "object"
+      properties:
+        company_url:
+          type: "string"
+        count:
+          type: "integer"
+        filters_applied:
+          type: "object"
+        scraped_at:
+          type: "string"
+        linkedin_id:
+          type: "string"
+    ProfileActivityResult:
+      description: "The data object returned by profile activity: one profile's posts,
+        comments, reactions, or reposts, for the requested kind."
+      type: "object"
+      properties:
+        kind:
+          type: "string"
+        url:
+          type: "string"
+        urn:
+          type: "string"
+        posts:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Post"
+        comments:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/ActivityComment"
+        reactions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/ActivityReaction"
+        reposts:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Post"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        pagination_token:
+          type:
+            - "string"
+            - "null"
+        scraped_at:
+          type: "string"
+    ActivityComment:
+      description: "One comment a profile left on another member's post, returned by
+        profile activity when kind is comments."
+      type: "object"
+      properties:
+        text:
+          type: "string"
+        posted_at:
+          type: "string"
+        replies_count:
+          type: "integer"
+        commenter:
+          $ref: "#/components/schemas/EngagementActor"
+        target_post:
+          $ref: "#/components/schemas/ActivityTargetPost"
+    ActivityReaction:
+      description: "One reaction a profile gave to another member's post, returned by
+        profile activity when kind is reactions."
+      type: "object"
+      properties:
+        reaction_type:
+          type: "string"
+        reacted_at:
+          type:
+            - "string"
+            - "null"
+        reactor:
+          $ref: "#/components/schemas/EngagementActor"
+        target_post:
+          $ref: "#/components/schemas/ActivityTargetPost"
+    ActivityTargetPost:
+      description: "The post a profile commented on, reacted to, or reposted, nested
+        under ActivityComment and ActivityReaction."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        urn:
+          type: "string"
+        share_urn:
+          type: "string"
+        text_snippet:
+          type: "string"
+        author:
+          type: "object"
+          properties:
+            name:
+              type: "string"
+            url:
+              type: "string"
+            headline:
+              type: "string"
+    PostEngagementResult:
+      description: "The data object returned by the post engagement endpoints: who
+        commented on, reacted to, or reposted one post. Inbound engagement only
+        - a profile's own comments, reactions, and reposts come from profile
+        activity."
+      type: "object"
+      properties:
+        comments:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PostComment"
+        reactions:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PostReaction"
+        reposts:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PostRepost"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        pagination_token:
+          type:
+            - "string"
+            - "null"
+        urn:
+          type: "string"
+        share_urn:
+          type: "string"
+    EngagementActor:
+      description: "The member behind one comment, reaction, or repost on a post."
+      type: "object"
+      properties:
+        url:
+          type: "string"
+        full_name:
+          type: "string"
+        headline:
+          type: "string"
+        urn:
+          type: "string"
+    PostComment:
+      description: "One comment left on a post, returned by posts/engagement/comments."
+      type: "object"
+      properties:
+        text:
+          type: "string"
+        posted_at:
+          type: "string"
+        commenter:
+          $ref: "#/components/schemas/EngagementActor"
+        replies_count:
+          type: "integer"
+    PostReaction:
+      description: "One reaction given to a post, returned by posts/engagement/reactions."
+      type: "object"
+      properties:
+        reaction_type:
+          type: "string"
+        reacted_at:
+          type:
+            - "string"
+            - "null"
+        reactor:
+          $ref: "#/components/schemas/EngagementActor"
+    PostRepost:
+      description: "One repost of a post, returned by posts/engagement/reposts."
+      type: "object"
+      properties:
+        reposted_at:
+          type: "string"
+        reposter:
+          $ref: "#/components/schemas/EngagementActor"
+        url:
+          type: "string"
+        text:
+          type: "string"
+    Pagination:
+      description: "Pagination metadata on Sales Navigator search results, profile
+        activity pages, and post engagement pages."
+      type: "object"
+      properties:
+        returned:
+          type: "integer"
+        max_results:
+          type: "integer"
+        pages_scraped:
+          type: "integer"
+        page:
+          type: "integer"
+        per_page:
+          type: "integer"
+        has_more:
+          type: "boolean"
+        total_estimate:
+          type:
+            - "integer"
+            - "null"
+    BatchJob:
+      description: "A batch job just after submission: accepted, not yet resolved.
+        Also the shape of the job field in the batch.completed webhook payload."
+      type: "object"
+      properties:
+        job_id:
+          type: "string"
+        status:
+          type: "string"
+        total:
+          type: "integer"
+        estimated_completion:
+          type: "string"
+    BatchJobResult:
+      description: "A batch job with its accumulated results, as returned by polling
+        GET /batch/{job_id}."
+      type: "object"
+      properties:
+        job_id:
+          type: "string"
+        status:
+          type: "string"
+        total:
+          type: "integer"
+        estimated_completion:
+          type: "string"
+        succeeded:
+          type: "integer"
+        failed:
+          type: "integer"
+        pending:
+          type: "integer"
+        results_available:
+          type: "integer"
+        results:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              item_index:
+                type: "integer"
+              status:
+                type: "string"
+              operation:
+                type: "string"
+              type:
+                type: "string"
+              url:
+                type: "string"
+              data:
+                type: "object"
+        failures:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              item_index:
+                type: "integer"
+              operation:
+                type: "string"
+              type:
+                type: "string"
+              url:
+                type: "string"
+              status:
+                type: "string"
+    BatchResultPage:
+      description: "A cursor page of immutable, first-seen batch result entries, as
+        returned by GET /batch/{job_id}/results."
+      type: "object"
+      properties:
+        job_id:
+          type: "string"
+        status:
+          type: "string"
+        results_available:
+          type: "integer"
+        entries:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              delivery_seq:
+                type: "integer"
+              item_index:
+                type: "integer"
+              entry_key:
+                type: "string"
+              data:
+                type: "object"
+              final_rank:
+                type: "integer"
+        next_cursor:
+          type:
+            - "string"
+            - "null"
+        has_more:
+          type: "boolean"
+        recommended_poll_ms:
+          type: "integer"
+    Error:
+      description: "The error envelope returned by every /v1 endpoint on failure."
+      type: "object"
+      properties:
+        error:
+          type: "object"
+          properties:
+            type:
+              type: "string"
+            message:
+              type: "string"
+            requestId:
+              type: "string"
+    Account:
+      description: "Account state returned by GET /account."
+      type: "object"
+      properties:
+        account_id:
+          type: "string"
+        tier:
+          type:
+            - "string"
+            - "null"
+        credits_remaining:
+          type: "integer"
+        credits_used_this_month:
+          type: "integer"
+        price_per_1k_credits_usd:
+          type:
+            - "number"
+            - "null"
+        rate_limit:
+          type: "object"
+          properties:
+            requests_per_minute:
+              type: "integer"
+            concurrent_batch_jobs:
+              type: "integer"
+            searches_per_hour:
+              type: "integer"
+            searches_remaining_this_hour:
+              type: "integer"
+        signals:
+          type: "object"
+          properties:
+            active:
+              type: "integer"
+            paused:
+              type: "integer"
+            max_active:
+              type: "integer"
+            estimated_monthly_credits:
+              type: "integer"
+        monitoring:
+          type: "object"
+          properties:
+            default_webhook_url:
+              type:
+                - "string"
+                - "null"
+            monthly_check_budget:
+              type: "integer"
+            checks_spent_this_month:
+              type: "integer"
+    Meta:
+      description: "The billing metadata object on every successful /v1 response."
+      type: "object"
+      properties:
+        creditsUsed:
+          type: "integer"
+        creditsRemaining:
+          type: "integer"
+        billed:
+          type: "boolean"
+        reason:
+          type: "string"
+        requestId:
+          type: "string"
+        latencyMs:
+          type: "integer"
+        nextCursor:
+          type:
+            - "string"
+            - "null"
+webhooks:
+  batch.completed:
+    post:
+      operationId: "batchCompletedWebhook"
+      summary: "Batch job completed"
+      description: "Delivered to webhook_url when a batch job finishes processing all
+        of its items."
+      parameters:
+        - name: "X-Up2Data-Event"
+          in: "header"
+          required: true
+          schema:
+            type: "string"
+          example: "batch.completed"
+        - name: "X-Up2Data-Signature"
+          in: "header"
+          required: true
+          schema:
+            type: "string"
+          description: "HMAC-SHA256 of `{timestamp}.{raw_body}`, formatted as
+            `t=<unix_timestamp>,v1=<hex_digest>`."
+          example: "t=1767225600,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0\
+            ce8e108d8bd"
+      requestBody:
+        content:
+          application/json:
+            example:
+              event: "batch.completed"
+              job:
+                job_id: "job_7hd92kfa"
+                status: "completed"
+                total: 1000
+                estimated_completion: "2026-07-07T14:03:00Z"
+      responses:
+        "200":
+          description: "Webhook received"

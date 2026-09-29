@@ -1,7 +1,7 @@
 // Where the API keys live: one per environment, saved against your account.
 
 import { PRESETS } from '../config.js'
-import { loadKeys, saveKey, forgetKey, clearToken, currentEnvironment } from '../keys.js'
+import { APIS, loadKeys, saveKey, forgetKey, clearToken, currentEnvironment } from '../keys.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -27,8 +27,12 @@ export function mountKeys(container) {
     announce(keys)
     rows.textContent = ''
 
+    for (const api of APIS) {
+      rows.append(el('div', 'key-api', api.label))
+      rows.append(el('p', 'hint', api.note))
+
     for (const preset of PRESETS) {
-      const state = (keys && keys[preset.id]) || { set: false }
+      const state = (keys && keys[api.id] && keys[api.id][preset.id]) || { set: false }
       const row = el('div', 'key-row')
 
       const head = el('div', 'key-head')
@@ -47,7 +51,7 @@ export function mountKeys(container) {
         forget.addEventListener('click', async () => {
           forget.disabled = true
           try {
-            draw(await forgetKey(preset.id))
+            draw(await forgetKey(api.id, preset.id))
             clearToken(preset.id)
           } finally {
             forget.disabled = false
@@ -72,7 +76,7 @@ export function mountKeys(container) {
         save.disabled = true
         save.textContent = 'Saving…'
         try {
-          const next = await saveKey(preset.id, value)
+          const next = await saveKey(api.id, preset.id, value)
           input.value = ''
           clearToken(preset.id)
           note.textContent = 'Saved. The console will use it from now on.'
@@ -93,6 +97,7 @@ export function mountKeys(container) {
       entry.append(input, save)
       row.append(entry, note)
       rows.append(row)
+    }
     }
 
     container.append(

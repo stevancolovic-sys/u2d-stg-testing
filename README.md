@@ -31,6 +31,39 @@ npx wrangler login   # opens a browser
 npm run deploy
 ```
 
+## Two APIs
+
+The console talks to both, chosen with the switch at the top of the left
+column.
+
+**Legacy** is the API this tool grew up around: a key exchanged for a
+24-hour token, one endpoint per kind of work, results collected from queues.
+
+**v1** is the newer surface at `/v1`, generated here straight from its
+published OpenAPI document — all 25 operations, including the dozen legacy has
+no equivalent for: profile recommendations and interests, company headcount
+and job counts, job enrichment and job search, post search, and post
+engagement (comments, reactions, reposts).
+
+v1 differs in ways that matter:
+
+| | legacy | v1 |
+|---|---|---|
+| auth | key exchanged for a 24h token | `X-API-Key` on every call |
+| answer | the document itself | `{data, meta}` or `{error}` |
+| volume | eleven endpoints, one queue each | one `POST /batch` with mixed items |
+| callbacks | registered in the dashboard, routed by tag | `webhook_url` sent with the batch |
+| credits | invisible | `GET /account` |
+
+Because v1 authenticates with a static header, its calls go **through the
+Worker**: the browser asks the Worker, which adds the key and forwards. The
+key never reaches the page, which is the same promise the key store already
+made for legacy.
+
+`npm run build:v1` regenerates `public/js/v1-endpoints.js` from
+`spec/v1.yaml`. A test compares the registry against that document operation
+by operation, property by property, so the two cannot drift.
+
 ## Who can get in
 
 The console is behind Google sign-in and only a verified **@totema.co**
@@ -45,7 +78,11 @@ GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 SESSION_SECRET        any long random string
 ALLOWED_DOMAIN        optional, defaults to totema.co
+OAUTH_REDIRECT_PATH   optional, defaults to /auth/callback
 ```
+
+For local development, put the same names in a `.dev.vars` file — it is
+gitignored, and `wrangler dev` reads it.
 
 The OAuth client's authorised redirect URI must be exactly
 `https://<worker>/auth/callback`.

@@ -28,17 +28,25 @@ async function json(path, options) {
   return body
 }
 
+// Two APIs, two deployments each — four slots, each with its own key.
+export const APIS = [
+  { id: 'legacy', label: 'Legacy', note: 'Exchanged for a 24-hour token behind the scenes.' },
+  { id: 'v1', label: 'v1', note: 'Sent as an X-API-Key header by the tool, never by the browser.' },
+]
+
 export const loadKeys = () => json('/keys').then((d) => d.keys)
 
-export const saveKey = (environment, apiKey) =>
+export const saveKey = (api, environment, apiKey) =>
   json('/keys', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ environment, apiKey }),
+    body: JSON.stringify({ api, environment, apiKey }),
   }).then((d) => d.keys)
 
-export const forgetKey = (environment) =>
-  json(`/keys?environment=${encodeURIComponent(environment)}`, { method: 'DELETE' }).then((d) => d.keys)
+export const forgetKey = (api, environment) =>
+  json(`/keys?api=${encodeURIComponent(api)}&environment=${encodeURIComponent(environment)}`, {
+    method: 'DELETE',
+  }).then((d) => d.keys)
 
 // --- tokens --------------------------------------------------------------
 
