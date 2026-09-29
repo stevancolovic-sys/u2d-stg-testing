@@ -80,6 +80,41 @@ describe('the generated v1 registry', () => {
     expect(V1_BASES.production).toBe('https://api.uptodata.io/v1')
   })
 
+  it('gives every operation something to fill in, or says it takes nothing', () => {
+    // Sixteen of these once opened with an empty form: the spec marks almost
+    // nothing required, so the example is what names the fields that matter.
+    for (const e of V1_ENDPOINTS) {
+      const primary = e.fields.filter((f) => f.primary)
+      expect(primary.length > 0 || e.takesNothing, `${e.id} opens empty`).toBe(true)
+    }
+  })
+
+  it('shows every field the spec example fills in', () => {
+    for (const { op } of specOps) {
+      const example = op.requestBody?.content?.['application/json']?.example
+      if (!example) continue
+      const ours = v1ById(op.operationId)
+      for (const name of Object.keys(example)) {
+        const field = ours.fields.find((f) => f.name === name)
+        expect(field, `${op.operationId} drops ${name}`).toBeTruthy()
+        expect(field.primary, `${op.operationId}.${name} is hidden`).toBe(true)
+      }
+    }
+  })
+
+  it('always shows a path parameter, since it is part of the address', () => {
+    for (const { op } of specOps) {
+      for (const param of (op.parameters || []).filter((p) => p.in === 'path')) {
+        expect(v1ById(op.operationId).fields.find((f) => f.name === param.name).primary).toBe(true)
+      }
+    }
+  })
+
+  it('starts a text field at the example value, so it is ready to edit', () => {
+    const enrich = v1ById('profiles-enrich')
+    expect(enrich.fields.find((f) => f.name === 'url').default).toContain('linkedin.com/in/')
+  })
+
   it('prefills a json field from the spec example rather than leaving it blank', () => {
     const search = v1ById('search-people') || V1_ENDPOINTS.find((e) => e.path === '/search/people')
     const filters = search.fields.find((f) => f.name === 'filters')

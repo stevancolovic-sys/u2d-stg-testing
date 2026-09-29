@@ -23,12 +23,8 @@ let root = null
 let getEnvironment = () => 'staging'
 
 function loadState(endpoint) {
+  // Every field's starting value is the example's own, set by the generator.
   const base = initialState(endpoint)
-  // A json field starts at the example the spec gives, which is the fastest
-  // way to see the shape a filter wants.
-  for (const field of endpoint.fields) {
-    if (field.type === 'json' && !base[field.name].value) base[field.name].value = field.default || ''
-  }
   try {
     const saved = JSON.parse(localStorage.getItem(stateKey(endpoint.id)) || 'null')
     if (saved) for (const name of Object.keys(base)) if (saved[name]) base[name] = { ...base[name], ...saved[name] }
@@ -74,26 +70,33 @@ function draw() {
   root.append(head)
   if (current.summary) root.append(el('p', 'lede', current.summary))
 
-  const required = current.fields.filter((f) => f.required)
-  const optional = current.fields.filter((f) => !f.required)
+  // The spec marks almost nothing required, so "what the example sends" is
+  // what gets asked for up front — otherwise most of these opened blank.
+  const primary = current.fields.filter((f) => f.primary)
+  const rest = current.fields.filter((f) => !f.primary)
 
-  if (required.length) {
+  if (current.takesNothing) {
+    root.append(el('p', 'hint', 'This call takes no input — just send it.'))
+  } else if (primary.length) {
     const step = el('section', 'step')
-    step.append(el('div', 'step-head', 'Required'))
+    step.append(el('div', 'step-head', 'What to send'))
+    step.append(
+      el('p', 'hint', 'Filled in from the example in the API documentation. Replace the values with your own.')
+    )
     const box = el('div', 'fields')
     step.append(box)
     root.append(step)
-    renderFields(box, required, state, onChange)
+    renderFields(box, primary, state, onChange)
   }
 
-  if (optional.length) {
+  if (rest.length) {
     const details = el('details', 'options')
-    const on = optional.filter((f) => state[f.name]?.enabled).length
-    details.append(el('summary', null, on ? `Options — ${on} set` : `Options — ${optional.length} available`))
+    const on = rest.filter((f) => state[f.name]?.enabled).length
+    details.append(el('summary', null, on ? `Everything else — ${on} set` : `Everything else — ${rest.length} more`))
     const box = el('div', 'fields')
     details.append(box)
     root.append(details)
-    renderFields(box, optional, state, onChange)
+    renderFields(box, rest, state, onChange)
   }
 
   const dispatch = el('section', 'dispatch')
@@ -124,11 +127,20 @@ function draw() {
   function refresh() {
     const missing = missingV1Required(current, state)
     const broken = jsonErrors(current, state)
+    const body = buildV1Body(current, state)
+    const nothing =
+      !current.takesNothing &&
+      !Object.keys(body || {}).length &&
+      !current.fields.some((f) => f.in === 'path' && String(state[f.name]?.value || '').trim())
+
     const blocked = missing.length
       ? `Still needed: ${missing.join(', ')}.`
       : broken.length
         ? `${broken.join(', ')} is not valid JSON.`
-        : ''
+        : nothing
+          ? 'Nothing filled in — this would go out empty.'
+          : ''
+
     send.disabled = Boolean(blocked)
     note.textContent = blocked
     pre.textContent = describeV1(current, state, getEnvironment())

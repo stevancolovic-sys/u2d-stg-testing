@@ -60,6 +60,14 @@ Worker**: the browser asks the Worker, which adds the key and forwards. The
 key never reaches the page, which is the same promise the key store already
 made for legacy.
 
+Each v1 operation opens with **What to send**: the fields the spec's own
+example fills in, already carrying the example's values, ready to be replaced.
+Everything else the operation accepts sits under a disclosure. The spec marks
+almost nothing as required — "provide a url or a urn" is a rule it never
+writes down — so going by `required` alone left sixteen of the twenty-five
+forms opening completely blank. The example is what names the fields that
+matter, and a test asserts every example field is shown.
+
 `npm run build:v1` regenerates `public/js/v1-endpoints.js` from
 `spec/v1.yaml`. A test compares the registry against that document operation
 by operation, property by property, so the two cannot drift.

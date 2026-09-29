@@ -17,26 +17,50 @@ const spec = YAML.parse(readFileSync(source, 'utf8'))
 
 // Our form renders these; anything else becomes a JSON box so it is still
 // callable rather than quietly missing.
+//
+// The spec marks almost nothing as required — "provide a url or a urn" is a
+// rule it never writes down — but every operation carries an example, and the
+// example names the fields you actually send. Those become the ones shown up
+// front, prefilled with the example's own value, and the rest go under
+// Options. Without this, sixteen of the twenty-five forms opened empty.
 function fieldFor(name, schema, required, example) {
-  const base = { name, label: name, required: Boolean(required) }
+  const shown = example !== undefined
+  const base = {
+    name,
+    label: name,
+    required: Boolean(required),
+    // Not "required" — the API may well accept the call without it — but the
+    // field the example fills in, which is where a person should start.
+    primary: shown,
+  }
   if (schema.description) base.hint = String(schema.description).replace(/\s+/g, ' ').trim()
 
+  const asDefault = (fallback) =>
+    example !== undefined ? (typeof example === 'string' ? example : JSON.stringify(example, null, 2)) : fallback
+
   if (schema.enum) {
-    return { ...base, type: 'number', choices: schema.enum.map((v) => ({ value: v, label: String(v) })) }
+    return {
+      ...base,
+      type: 'number',
+      choices: schema.enum.map((v) => ({ value: v, label: String(v) })),
+      default: example !== undefined ? example : schema.enum[0],
+    }
   }
   switch (schema.type) {
     case 'boolean':
-      return { ...base, type: 'boolean', default: true }
+      return { ...base, type: 'boolean', default: example !== undefined ? example : true }
     case 'integer':
     case 'number':
-      return { ...base, type: 'number' }
+      return { ...base, type: 'number', ...(example !== undefined ? { default: example } : {}) }
     case 'array':
-      if (schema.items?.type === 'string') return { ...base, type: 'tags' }
-      return { ...base, type: 'json', default: example !== undefined ? JSON.stringify(example, null, 2) : '[]' }
+      if (schema.items?.type === 'string') {
+        return { ...base, type: 'tags', ...(Array.isArray(example) ? { default: example } : {}) }
+      }
+      return { ...base, type: 'json', default: asDefault('[]') }
     case 'object':
-      return { ...base, type: 'json', default: example !== undefined ? JSON.stringify(example, null, 2) : '{}' }
+      return { ...base, type: 'json', default: asDefault('{}') }
     default:
-      return { ...base, type: 'text' }
+      return { ...base, type: 'text', ...(typeof example === 'string' ? { default: example } : {}) }
   }
 }
 
@@ -59,6 +83,8 @@ for (const [path, ops] of Object.entries(spec.paths || {})) {
       fields.push({
         ...fieldFor(param.name, p, param.required || param.in === 'path', undefined),
         in: param.in,
+        // Part of the address, so never buried under Options.
+        primary: param.in === 'path' || Boolean(param.required),
       })
     }
 
@@ -67,6 +93,9 @@ for (const [path, ops] of Object.entries(spec.paths || {})) {
     }
 
     operations.push({
+      // True when the call takes nothing at all, so the form can say so
+      // instead of looking broken.
+      takesNothing: fields.length === 0,
       id: op.operationId,
       group: (op.tags || ['Other'])[0],
       label: op.summary || op.operationId,
