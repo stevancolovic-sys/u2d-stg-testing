@@ -525,43 +525,19 @@ export class KeyStore {
       return json({ accessToken: answer.accessToken, environment })
     }
 
-    // Forward a v1 call, adding the key. v1 authenticates with a static
-    // header, so the browser would otherwise have to hold the key itself.
-    if (request.method === 'POST' && url.pathname === '/proxy') {
+    // Hand the key to the Worker, which makes the call itself. Proxying from
+    // in here made this one object the bottleneck for every v1 request:
+    // a dozen at once queued behind each other instead of running side by
+    // side. Workers scale out; a Durable Object does not.
+    if (request.method === 'POST' && url.pathname === '/key') {
       const payload = await request.json().catch(() => null)
+      const api = (payload && payload.api) || 'v1'
       const environment = (payload && payload.environment) || 'staging'
-      const target = payload && payload.path
-      const base = baseFor('v1', environment)
-      if (!base || typeof target !== 'string' || !target.startsWith('/')) {
-        return json({ error: 'Unknown environment or path' }, 400)
-      }
+      if (!baseFor(api, environment)) return json({ error: 'Unknown api or environment' }, 400)
 
-      const apiKey = this.keyFor('v1', environment)
-      if (!apiKey) return json({ error: 'no_key', api: 'v1', environment }, 404)
-
-      const method = (payload.method || 'POST').toUpperCase()
-      const started = Date.now()
-      const res = await fetch(base + target, {
-        method,
-        headers: {
-          'X-API-Key': apiKey,
-          ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
-        },
-        body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
-      }).catch(() => null)
-
-      if (!res) return json({ error: 'unreachable' }, 502)
-
-      const text = await res.text()
-      // The answer is passed through as it came, so the console shows what the
-      // API actually said rather than something rewritten on the way.
-      return json({
-        status: res.status,
-        ok: res.ok,
-        headers: Object.fromEntries(res.headers),
-        raw: text,
-        elapsedMs: Date.now() - started,
-      })
+      const apiKey = this.keyFor(api, environment)
+      if (!apiKey) return json({ error: 'no_key', api, environment }, 404)
+      return json({ apiKey })
     }
 
     return json({ error: 'Not found' }, 404)
@@ -612,7 +588,60 @@ export default {
     const refused = await gate(request, env, url)
     if (refused) return refused
 
-    if (parts[0] === 'keys' && (!parts[1] || parts[1] === 'token' || parts[1] === 'proxy')) {
+    // The v1 proxy lives here rather than in the key store, so concurrent
+    // calls fan out across Worker instances instead of queueing behind one
+    // Durable Object. The key is fetched from the store and used here; it
+    // still never reaches the browser.
+    if (parts[0] === 'keys' && parts[1] === 'proxy' && request.method === 'POST') {
+      const session = await verifySession(
+        parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
+        authConfig(env).secret
+      )
+      const payload = await request.json().catch(() => null)
+      const environment = (payload && payload.environment) || 'staging'
+      const target = payload && payload.path
+      const base = baseFor('v1', environment)
+      if (!base || typeof target !== 'string' || !target.startsWith('/')) {
+        return json({ error: 'Unknown environment or path' }, 400)
+      }
+
+      const stub = env.KEYS.get(env.KEYS.idFromName(session.email))
+      const keyReply = await stub.fetch(
+        new Request('https://do/key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api: 'v1', environment }),
+        })
+      )
+      const keyBody = await keyReply.json().catch(() => null)
+      if (!keyReply.ok || !keyBody || !keyBody.apiKey) {
+        return json({ error: (keyBody && keyBody.error) || 'no_key', api: 'v1', environment }, keyReply.status)
+      }
+
+      const method = (payload.method || 'POST').toUpperCase()
+      const started = Date.now()
+      const res = await fetch(base + target, {
+        method,
+        headers: {
+          'X-API-Key': keyBody.apiKey,
+          ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
+      }).catch(() => null)
+
+      if (!res) return json({ error: 'unreachable' }, 502)
+
+      const text = await res.text()
+      return json({
+        status: res.status,
+        ok: res.ok,
+        headers: Object.fromEntries(res.headers),
+        raw: text,
+        elapsedMs: Date.now() - started,
+      })
+    }
+
+    if (parts[0] === 'keys' && (!parts[1] || parts[1] === 'token')) {
       const session = await verifySession(
         parseCookies(request.headers.get('cookie'))[SESSION_COOKIE],
         authConfig(env).secret

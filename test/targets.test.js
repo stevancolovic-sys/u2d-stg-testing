@@ -52,7 +52,7 @@ describe('buildPools', () => {
 
   it('falls back to real companies when none were supplied', () => {
     expect(buildPools({}).company).toEqual(COMPANY_SEED)
-    expect(COMPANY_SEED.length).toBeGreaterThan(20)
+    expect(COMPANY_SEED.length).toBeGreaterThan(10)
     expect(COMPANY_SEED.every((u) => u.startsWith('https://www.linkedin.com/company/'))).toBe(true)
   })
 

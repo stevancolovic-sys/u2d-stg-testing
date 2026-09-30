@@ -10,14 +10,12 @@ import { parseLines } from './request.js'
 // without anyone pasting a list. Made-up targets would answer 422
 // unprocessable_target — which still bills — so none are invented here.
 export const COMPANY_SEED = [
-  'stripe', 'figma', 'anthropicresearch', 'openai', 'microsoft', 'google',
-  'amazon', 'apple', 'meta', 'netflix', 'airbnb', 'uber', 'lyft', 'shopify',
-  'spotify', 'slack-software', 'atlassian', 'gitlab', 'github', 'hashicorp',
-  'datadog', 'snowflake-computing', 'databricks', 'mongodb', 'elastic-co',
-  'cloudflare', 'digitalocean', 'twilio', 'sendgrid', 'segment', 'amplitude',
-  'mixpanel', 'intercom', 'zendesk', 'hubspot', 'salesforce', 'workday',
-  'servicenow', 'palantir-technologies', 'nvidia', 'amd', 'intel', 'qualcomm',
-  'arm', 'asml', 'siemens', 'sap', 'oracle', 'ibm', 'accenture',
+  // Only slugs seen to answer 200 from the API. An unverified slug answers
+  // 422 unprocessable_target, which bills and measures nothing — so a short
+  // list that works beats a long one that does not.
+  'stripe', 'figma', 'shopify', 'spotify', 'airbnb', 'uber', 'netflix',
+  'twilio', 'atlassian', 'nvidia', 'sap', 'anthropicresearch', 'openai',
+  'google', 'microsoft', 'amazon', 'meta',
 ].map((slug) => `https://www.linkedin.com/company/${slug}`)
 
 // Which pool an operation draws from, and the field the target goes into.
