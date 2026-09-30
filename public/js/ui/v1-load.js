@@ -5,10 +5,11 @@
 
 import { V1_ENDPOINTS, v1ById } from '../v1-endpoints.js'
 import { callV1 } from '../v1-api.js'
-import { runPool, scheduleDelays } from '../burst.js'
-import { planRun, summariseV1Run, budgetReached, creditsOf, isSearch, searchOpsAmong } from '../v1-load.js'
+import { summariseV1Run, creditsOf, isSearch, searchOpsAmong, ratesOver, lastsFor } from '../v1-load.js'
 import { stateFor } from './v1.js'
 import { downloadJson } from '../download.js'
+import { buildPools, targetSlotFor, nextTarget, runnable, KINDS, kindLabel } from '../targets.js'
+import { currentLinks, loadLinks } from './links.js'
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -144,17 +145,8 @@ export function mountV1Load(container, { getEnvironment = () => 'staging' } = {}
     return input
   }
 
-  const perOp = num(5, 1, 500)
-  const rate = num(2, 0)
-  const mode = el('select', 'input')
-  for (const [value, label] of [['pool', 'at a time'], ['rate', 'per second']]) {
-    const option = el('option', null, label)
-    option.value = value
-    mode.append(option)
-  }
-  mode.addEventListener('change', refresh)
+  const inFlight = num(10, 1, 200)
   const timeout = num(0, 0)
-  const budget = num(500, 0)
 
   const field = (label, control, hint) => {
     const wrap = el('div', 'burst-field')
@@ -164,22 +156,57 @@ export function mountV1Load(container, { getEnvironment = () => 'staging' } = {}
     return wrap
   }
 
-  const pacing = el('div', 'pacing')
-  pacing.append(rate, mode)
-
   controls.append(
-    field('calls each', perOp, 'How many times to call every operation you ticked.'),
-    field('pacing', pacing, 'At a time keeps that many in flight. Per second fires on a schedule.'),
-    field('give up after', timeout, 'Seconds before abandoning a call. 0 waits.'),
-    field('stop at', budget, 'Credits. The run stops once the API says this much has been spent.')
+    field(
+      'in flight',
+      inFlight,
+      'How many calls are kept running at once. The run keeps going, cycling operations and targets, until you stop it.'
+    ),
+    field('give up after', timeout, 'Seconds before abandoning a call. 0 waits. Abandoning still bills.')
   )
   container.append(controls)
+
+  // --- pools of things to call with ---
+  const pastedKey = 'up2data.v1load.pasted'
+  let pasted = {}
+  try {
+    pasted = JSON.parse(localStorage.getItem(pastedKey) || '{}') || {}
+  } catch {
+    pasted = {}
+  }
+
+  const poolBox = el('details', 'options')
+  poolBox.append(el('summary', null, 'Targets'))
+  poolBox.append(
+    el(
+      'p',
+      'hint',
+      'Every call takes the next target from its pool, so the same one is not sent twice until the pool has been round — sending one URL over and over measures their cache, not their workers. Profiles come from Saved links. Posts and jobs have no seed: a made-up URN answers 422, which still bills and tells you nothing.'
+    )
+  )
+  for (const kind of KINDS) {
+    const wrap = el('div', 'burst-field wide')
+    wrap.append(el('label', 'key mono', kindLabel[kind]))
+    const box = el('textarea', 'input textarea')
+    box.rows = 3
+    box.spellcheck = false
+    box.value = pasted[kind] || ''
+    box.placeholder = kind === 'company' ? 'Leave empty to use a built-in list of real companies' : 'One per line'
+    box.addEventListener('input', () => {
+      pasted[kind] = box.value
+      try { localStorage.setItem(pastedKey, JSON.stringify(pasted)) } catch {}
+      refresh()
+    })
+    wrap.append(box)
+    poolBox.append(wrap)
+  }
+  container.append(poolBox)
 
   const plan = el('p', 'burst-estimate')
   container.append(plan)
 
   const actions = el('div', 'row-actions')
-  const go = el('button', 'btn btn-send', 'Run')
+  const go = el('button', 'btn btn-send', 'Start')
   const stop = el('button', 'btn-ghost danger', 'Stop')
   stop.disabled = true
   const save = el('button', 'btn-ghost', 'Download run')
@@ -193,100 +220,132 @@ export function mountV1Load(container, { getEnvironment = () => 'staging' } = {}
 
   function refresh() {
     const ids = [...picked]
-    const calls = ids.length * (Number(perOp.value) || 0)
-    const searches = searchOpsAmong(ids)
-    const searchCalls = searches.length * (Number(perOp.value) || 0)
+    const pools = buildPools({ saved: currentLinks(), pasted })
+    const { ready, blocked } = runnable(ids.map(v1ById).filter(Boolean), pools)
 
-    const bits = [`${calls} call${calls === 1 ? '' : 's'} across ${ids.length} operation${ids.length === 1 ? '' : 's'}`]
-    if (Number(budget.value) > 0) bits.push(`stopping at ${Number(budget.value).toLocaleString('en-US')} credits`)
-    plan.textContent = bits.join(', ') + '.'
+    plan.textContent = ''
+    const line = el('span')
+    line.textContent =
+      `${ready.length} operation${ready.length === 1 ? '' : 's'} ready, ` +
+      `${Number(inFlight.value) || 0} in flight, cycling ` +
+      KINDS.filter((k) => pools[k].length).map((k) => `${pools[k].length} ${k}s`).join(', ') +
+      '.'
+    plan.append(line)
 
-    if (searchCalls) {
-      const left = account?.rate_limit?.searches_remaining_this_hour
-      plan.textContent +=
-        ` ${searchCalls} of them are searches` +
-        (Number.isFinite(left) ? `, and you have ${left} left this hour — the rest will come back 429, which costs nothing.` : '.')
+    if (blocked.length) {
+      plan.append(
+        el(
+          'span',
+          'plan-blocked',
+          ` ${blocked.length} cannot run without targets: ` +
+            [...new Set(blocked.map((b) => b.needs))].join(', ') +
+            ' — paste some under Targets.'
+        )
+      )
     }
 
-    go.disabled = running || !ids.length || !(Number(perOp.value) > 0)
+    const searches = searchOpsAmong(ready)
+    if (searches.length) {
+      const left = account?.rate_limit?.searches_remaining_this_hour
+      plan.append(
+        el(
+          'span',
+          'plan-blocked',
+          ` ${searches.length} are searches` +
+            (Number.isFinite(left)
+              ? `, and only ${left} are allowed this hour — the rest answer 429, free.`
+              : '.')
+        )
+      )
+    }
+
+    go.disabled = running || !ready.length
   }
 
   // --- the run ---
+  let spent = 0
+  let issued = 0
+
   async function run() {
+    const pools = buildPools({ saved: currentLinks(), pasted })
     const ids = [...picked]
-    const calls = ids.length * Number(perOp.value)
-    const cap = Number(budget.value) || 0
+    const { ready } = runnable(ids.map(v1ById).filter(Boolean), pools)
+    if (!ready.length) return
 
     const ok = confirm(
-      `Send ${calls} calls across ${ids.length} operations.\n\n` +
-        (cap ? `Stopping once ${cap.toLocaleString('en-US')} credits have been spent.` : 'With no credit limit.') +
-        '\n\nRun it?'
+      `Keep ${Number(inFlight.value)} calls in flight across ${ready.length} operations, continuously.\n\n` +
+        'There is no limit — it runs until you press Stop, and every answered call is billed.\n\nStart?'
     )
     if (!ok) return
 
     running = true
     cancel = false
     results = []
+    spent = 0
+    issued = 0
     go.disabled = true
     stop.disabled = false
     save.disabled = true
     table.textContent = ''
 
-    const items = planRun(ids, Number(perOp.value))
     const startedRun = performance.now()
     const timeoutMs = Math.max(0, Number(timeout.value) || 0) * 1000
-    let spent = 0
 
-    const send = async (item, i) => {
-      if (cancel || budgetReached(spent, cap)) return
-      const endpoint = v1ById(item.operationId)
-      const record = {
-        operationId: item.operationId,
-        startedAt: Math.round(performance.now() - startedRun),
+    // One worker per slot, each taking the next operation and the next target
+    // for as long as the run lasts.
+    const worker = async () => {
+      while (!cancel) {
+        const seq = issued++
+        const endpoint = v1ById(ready[seq % ready.length])
+        const state = { ...stateFor(endpoint) }
+
+        const slot = targetSlotFor(endpoint)
+        if (slot) {
+          const target = nextTarget(pools[slot.kind], Math.floor(seq / ready.length))
+          if (!target) continue
+          state[slot.field] = { enabled: true, value: target }
+          // Two ways to name the same thing; sending both is a bad request.
+          const other = slot.field === 'url' ? 'urn' : 'url'
+          if (state[other]) state[other] = { ...state[other], enabled: false, value: '' }
+        }
+
+        const record = {
+          operationId: endpoint.id,
+          target: slot ? state[slot.field].value : null,
+          startedAt: Math.round(performance.now() - startedRun),
+        }
+        results.push(record)
+
+        const result = await callV1({ endpoint, state, environment: getEnvironment(), timeoutMs })
+
+        record.finishedAt = Math.round(performance.now() - startedRun)
+        record.result = result
+        const cost = creditsOf(result)
+        if (cost !== null) spent += cost
       }
-      results.push(record)
-
-      const result = await callV1({
-        endpoint,
-        state: stateFor(endpoint),
-        environment: getEnvironment(),
-        timeoutMs,
-      })
-
-      record.finishedAt = Math.round(performance.now() - startedRun)
-      record.result = result
-      const cost = creditsOf(result)
-      if (cost !== null) spent += cost
-
-      renderSummary(cap)
-      return record
     }
 
-    if (mode.value === 'pool') {
-      await runPool(items, Number(rate.value) || 1, send, () => cancel || budgetReached(spent, cap))
-    } else {
-      const delays = scheduleDelays(items.length, Number(rate.value))
-      await Promise.all(
-        delays.map(async (delay, i) => {
-          if (delay) await sleep(delay)
-          return send(items[i], i)
-        })
-      )
-    }
+    const width = Math.max(1, Number(inFlight.value) || 1)
+    const ticker = setInterval(() => renderSummary(startedRun), 1000)
 
+    await Promise.all(Array.from({ length: width }, worker))
+
+    clearInterval(ticker)
     running = false
     go.disabled = false
     stop.disabled = true
     save.disabled = false
-    renderSummary(cap)
+    renderSummary(startedRun)
     readAccount().then((d) => {
       account = d
       refresh()
     })
   }
 
-  function renderSummary(cap) {
-    const s = summariseV1Run(results, cap)
+  function renderSummary(startedRun) {
+    const s = summariseV1Run(results, 0)
+    const now = startedRun ? performance.now() - startedRun : 0
+    const rates = ratesOver(results, now)
     summary.textContent = ''
     if (!s.sent) return
 
@@ -299,17 +358,29 @@ export function mountV1Load(container, { getEnvironment = () => 'staging' } = {}
     }
     const seconds = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`)
 
+    const remaining = s.creditsRemaining ?? account?.credits_remaining ?? null
+    const runway = lastsFor(remaining, rates.creditsPerMinute)
+
     const grid = el('div', 'stats')
-    grid.append(stat(`sent of ${results.length}`, s.sent))
-    grid.append(stat('succeeded', s.succeeded, s.succeeded ? 'ok' : null))
-    grid.append(stat('did not', s.failed, s.failed ? 'bad' : null))
-    grid.append(stat('credits spent', s.credits.toLocaleString('en-US'), 'live'))
-    if (s.creditsRemaining !== null) grid.append(stat('left', s.creditsRemaining.toLocaleString('en-US')))
-    grid.append(stat('took', seconds(s.elapsedMs)))
+    grid.append(stat('sent', s.sent))
+    grid.append(stat('in flight', Math.max(0, results.length - s.sent)))
+    grid.append(stat('per minute', rates.perMinute, running ? 'live' : null))
+    grid.append(stat('credits / min', rates.creditsPerMinute.toLocaleString('en-US'), running ? 'live' : null))
+    grid.append(stat('spent', s.credits.toLocaleString('en-US')))
+    if (remaining !== null) grid.append(stat('left', remaining.toLocaleString('en-US')))
+    if (runway) grid.append(stat('lasts about', runway, 'bad'))
     summary.append(grid)
 
-    if (s.stoppedOnBudget) {
-      summary.append(el('p', 'hint', `Stopped: the budget of ${cap.toLocaleString('en-US')} credits was reached.`))
+    const second = el('div', 'stats stats-minor')
+    second.append(stat('succeeded', s.succeeded, s.succeeded ? 'ok' : null))
+    second.append(stat('did not', s.failed, s.failed ? 'bad' : null))
+    second.append(stat('running for', seconds(s.elapsedMs)))
+    summary.append(second)
+
+    if (runway) {
+      summary.append(
+        el('p', 'hint', `At this rate the balance runs out in about ${runway}. Nothing stops this run but you.`)
+      )
     }
     if (s.unknownCost) {
       summary.append(
@@ -329,6 +400,9 @@ export function mountV1Load(container, { getEnvironment = () => 'staging' } = {}
       table.append(row)
     }
   }
+
+  // Saved links feed the profile pool, so make sure they are loaded.
+  if (!currentLinks().length) loadLinks().then(refresh).catch(() => {})
 
   go.addEventListener('click', () => {
     if (!running) run()

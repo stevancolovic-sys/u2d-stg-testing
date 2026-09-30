@@ -910,3 +910,6 @@ table.results tr:hover td { background: var(--panel); }
   font-size: 12.5px;
 }
 .v1-op-row .mono:first-child { flex: 0 0 200px; color: #fff; }
+
+.plan-blocked { color: var(--alarm); }
+.burst-field.wide .textarea { width: 100%; }

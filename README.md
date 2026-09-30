@@ -210,8 +210,22 @@ anything else there.
 ## Volume testing v1
 
 With v1 selected, **Load test** changes to match it. Tick as many of the 24
-billable operations as you like, say how many calls each should get, and set a
-**credit budget**.
+billable operations as you like, say how many calls to keep **in flight**, and
+press Start. It runs continuously — cycling operations and targets — until you
+press Stop. There is no other limit.
+
+Because there is no limit, the meter is the safeguard: alongside what has been
+spent it shows **credits per minute** over a trailing window and **how long the
+balance lasts at that rate**. A call takes 2.5 to 6 seconds, so one at a time
+is about 14 a minute; ten in flight is roughly 140, and twenty-five approaches
+the API's ceiling of 300.
+
+**Targets rotate.** Sending one URL over and over measures their cache, not
+the workers behind it, so every call takes the next target from a pool of its
+own kind and none repeats until the pool has been round. Profiles come from
+Saved links. Companies fall back to a built-in list of real companies. Posts
+and jobs have no seed and must be pasted: a made-up URN answers `422
+unprocessable_target`, which still bills and tells you nothing.
 
 Nothing here estimates. Every v1 reply reports `meta.creditsUsed`,
 `creditsRemaining`, `billed` and `reason`, so the run sums what was actually

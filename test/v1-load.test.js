@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   isSearch, searchOpsAmong, creditsOf, remainingAfter, reasonOf,
-  budgetReached, summariseV1Run, planRun,
+  budgetReached, summariseV1Run, planRun, ratesOver, lastsFor,
 } from '../public/js/v1-load.js'
 import { v1ById } from '../public/js/v1-endpoints.js'
 
@@ -96,6 +96,53 @@ describe('planRun', () => {
   it('plans nothing for nothing', () => {
     expect(planRun([], 5)).toEqual([])
     expect(planRun(['a'], 0)).toEqual([])
+  })
+})
+
+describe('ratesOver', () => {
+  // Ten calls in the last ten seconds, two credits each.
+  const recent = Array.from({ length: 10 }, (_, i) => ({
+    operationId: 'profiles-enrich',
+    startedAt: 90000 + i * 1000,
+    finishedAt: 90500 + i * 1000,
+    result: { ok: true, body: { meta: { creditsUsed: 2, billed: true } } },
+  }))
+
+  it('scales a partly filled window instead of reporting a rate too low', () => {
+    const r = ratesOver(recent, 100000)
+    // Ten calls across ten seconds is sixty a minute, not ten.
+    expect(r.perMinute).toBe(60)
+    expect(r.creditsPerMinute).toBe(120)
+    expect(r.sampled).toBe(10)
+  })
+
+  it('ignores anything older than the window', () => {
+    const old = [{ operationId: 'x', startedAt: 0, finishedAt: 1000, result: { body: { meta: { creditsUsed: 99 } } } }]
+    const r = ratesOver([...old, ...recent], 100000)
+    expect(r.creditsPerMinute).toBe(120)
+  })
+
+  it('reports nothing when nothing has finished', () => {
+    expect(ratesOver([], 1000)).toEqual({ perMinute: 0, creditsPerMinute: 0, window: 60000, sampled: 0 })
+  })
+
+  it('does not count a reply that reported no cost as free', () => {
+    const unknown = [{ operationId: 'x', startedAt: 95000, finishedAt: 96000, result: { body: {} } }]
+    expect(ratesOver(unknown, 100000).creditsPerMinute).toBe(0)
+  })
+})
+
+describe('lastsFor', () => {
+  it('reads in the unit that suits the runway', () => {
+    expect(lastsFor(600, 120)).toBe('5 min')
+    expect(lastsFor(36000, 120)).toBe('5.0 h')
+    expect(lastsFor(532000, 120)).toBe('3 days')
+  })
+
+  it('says nothing rather than dividing by zero', () => {
+    expect(lastsFor(1000, 0)).toBe(null)
+    expect(lastsFor(null, 100)).toBe(null)
+    expect(lastsFor(0, 100)).toBe(null)
   })
 })
 

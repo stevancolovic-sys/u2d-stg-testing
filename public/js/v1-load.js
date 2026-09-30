@@ -113,6 +113,44 @@ export function summariseV1Run(results, budget) {
   }
 }
 
+// --- how fast it is going, and how long that can last -------------------
+
+// Measured over a trailing window rather than the whole run, so the figure
+// follows what is happening now instead of averaging away a slow start.
+export function ratesOver(results, nowMs, windowMs = 60000) {
+  const from = nowMs - windowMs
+  const recent = results.filter((r) => r.finishedAt !== undefined && r.finishedAt >= from)
+  if (!recent.length) return { perMinute: 0, creditsPerMinute: 0, window: windowMs, sampled: 0 }
+
+  // Early in a run the window is not yet full; scaling by the whole window
+  // would report a rate far below the truth.
+  const span = Math.max(1, Math.min(windowMs, nowMs - Math.min(...recent.map((r) => r.startedAt))))
+  const scale = 60000 / span
+
+  let credits = 0
+  for (const r of recent) {
+    const cost = creditsOf(r.result)
+    if (cost !== null) credits += cost
+  }
+
+  return {
+    perMinute: Math.round(recent.length * scale),
+    creditsPerMinute: Math.round(credits * scale),
+    window: windowMs,
+    sampled: recent.length,
+  }
+}
+
+// The number that stands in for a limit when a run has none.
+export function lastsFor(creditsRemaining, creditsPerMinute) {
+  if (!Number.isFinite(creditsRemaining) || creditsRemaining <= 0) return null
+  if (!Number.isFinite(creditsPerMinute) || creditsPerMinute <= 0) return null
+  const minutes = creditsRemaining / creditsPerMinute
+  if (minutes < 60) return `${Math.round(minutes)} min`
+  if (minutes < 60 * 48) return `${(minutes / 60).toFixed(1)} h`
+  return `${Math.round(minutes / 1440)} days`
+}
+
 // One entry per call, in the order they will be issued: every picked
 // operation gets its share before any of them gets a second turn, so a run cut
 // short by the budget still covers the spread rather than only the first one.
