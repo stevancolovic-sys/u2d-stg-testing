@@ -613,3 +613,6 @@ ensureToken().then(() => {
   setJobsVisible(where.kind === 'panel' && where.id === 'jobs')
   renderQueues()
 })
+
+// Tells the boot watchdog in index.html that the app came up.
+window.__u2dReady = true

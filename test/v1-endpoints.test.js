@@ -121,4 +121,45 @@ describe('the generated v1 registry', () => {
     expect(filters.type).toBe('json')
     expect(() => JSON.parse(filters.default)).not.toThrow()
   })
+
+  // The spec's example picks one way to name the subject and the alternatives
+  // fall under Options, so someone holding a post URL found only a urn box.
+  it('shows every way of naming the subject, not just the one the example used', () => {
+    const alternatives = ['url', 'urn', 'share_urn', 'linkedin_id', 'domain', 'public_id']
+    for (const endpoint of V1_ENDPOINTS) {
+      const ids = endpoint.fields.filter(
+        (f) => f.in === 'body' && alternatives.includes(f.name)
+      )
+      if (!ids.some((f) => f.primary)) continue
+      for (const field of ids) {
+        expect(
+          field.primary,
+          `${endpoint.id}: "${field.name}" is hidden while a sibling identifier is shown`
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('marks the alternatives as one choice, so two are never sent at once', () => {
+    const comments = v1ById('posts-engagement-comments')
+    const group = comments.fields.find((f) => f.name === 'url').exclusiveGroup
+    expect(group).toBeTruthy()
+    for (const name of ['urn', 'share_urn']) {
+      expect(comments.fields.find((f) => f.name === name).exclusiveGroup).toBe(group)
+    }
+    // Anything that is not a way of naming the subject stays independent.
+    expect(comments.fields.find((f) => f.name === 'page').exclusiveGroup).toBeUndefined()
+  })
+
+  it('lets a post URL be entered on the engagement calls', () => {
+    for (const id of [
+      'posts-engagement-comments',
+      'posts-engagement-reactions',
+      'posts-engagement-reposts',
+    ]) {
+      const endpoint = v1ById(id)
+      if (!endpoint) continue
+      expect(endpoint.fields.find((f) => f.name === 'url').primary).toBe(true)
+    }
+  })
 })

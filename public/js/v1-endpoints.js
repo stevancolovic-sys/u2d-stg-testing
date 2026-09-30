@@ -27,15 +27,17 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://www.linkedin.com/in/satyanadella",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "urn",
         "label": "urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "fields",
@@ -81,15 +83,17 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/in/janedoe",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "urn",
         "label": "urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "kind",
@@ -151,15 +155,17 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://www.linkedin.com/in/janedoe",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "urn",
         "label": "urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "direction",
@@ -205,15 +211,17 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://www.linkedin.com/in/janedoe",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "urn",
         "label": "urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "category",
@@ -258,23 +266,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/company/anthropic",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "domain",
         "label": "domain",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "linkedin_id",
         "label": "linkedin_id",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "fields",
@@ -302,23 +313,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/company/anthropic",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "domain",
         "label": "domain",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "linkedin_id",
         "label": "linkedin_id",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       }
     ]
   },
@@ -338,23 +352,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/company/anthropic",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "domain",
         "label": "domain",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "linkedin_id",
         "label": "linkedin_id",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "page",
@@ -407,7 +424,8 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/company/anthropic",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "company_url",
@@ -444,7 +462,8 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://www.linkedin.com/jobs/view/4470130770",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "job_id",
@@ -544,15 +563,17 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "https://linkedin.com/posts/ceo_launch-activity-7215",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "urn",
         "label": "urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       }
     ]
   },
@@ -645,23 +666,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "7267273010393358336",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "url",
         "label": "url",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "share_urn",
         "label": "share_urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "page",
@@ -714,23 +738,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "7267273010393358336",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "url",
         "label": "url",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "share_urn",
         "label": "share_urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "page",
@@ -792,23 +819,26 @@ export const V1_ENDPOINTS = [
         "primary": true,
         "type": "text",
         "default": "7267273010393358336",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "url",
         "label": "url",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "share_urn",
         "label": "share_urn",
         "required": false,
-        "primary": false,
+        "primary": true,
         "type": "text",
-        "in": "body"
+        "in": "body",
+        "exclusiveGroup": "subject"
       },
       {
         "name": "page",

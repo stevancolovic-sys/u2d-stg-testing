@@ -92,6 +92,23 @@ for (const [path, ops] of Object.entries(spec.paths || {})) {
       fields.push({ ...fieldFor(name, prop, required.has(name), example[name]), in: 'body' })
     }
 
+    // "Give me a url or a urn" is a rule the spec never writes down: it just
+    // picks one for its example and the rest fall under Options. But which one
+    // you hold is not the example's choice to make — someone with a post URL
+    // should not have to open a collapsed section to find anywhere to put it.
+    // So once any of these identifies the subject, they all show.
+    const alternatives = ['url', 'urn', 'share_urn', 'linkedin_id', 'domain', 'public_id']
+    const identifies = (f) => f.in === 'body' && alternatives.includes(f.name)
+    if (fields.some((f) => identifies(f) && f.primary)) {
+      for (const f of fields) {
+        if (!identifies(f)) continue
+        f.primary = true
+        // The API answers "Provide exactly one of url or urn", so the form has
+        // to treat them as one choice rather than as separate optional fields.
+        f.exclusiveGroup = 'subject'
+      }
+    }
+
     operations.push({
       // True when the call takes nothing at all, so the form can say so
       // instead of looking broken.

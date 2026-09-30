@@ -30,8 +30,24 @@ async function json(path, options) {
 
 // Two APIs, two deployments each — four slots, each with its own key.
 export const APIS = [
-  { id: 'legacy', label: 'Legacy', note: 'Exchanged for a 24-hour token behind the scenes.' },
-  { id: 'v1', label: 'v1', note: 'Sent as an X-API-Key header by the tool, never by the browser.' },
+  {
+    id: 'legacy',
+    label: 'Legacy',
+    note: 'Exchanged for a 24-hour token behind the scenes.',
+    bases: {
+      staging: 'https://api.staging.uptodata.io/api',
+      production: 'https://api.uptodata.io/api',
+    },
+  },
+  {
+    id: 'v1',
+    label: 'v1',
+    note: 'Sent as an X-API-Key header by the tool, never by the browser.',
+    bases: {
+      staging: 'https://api.staging.uptodata.io/v1',
+      production: 'https://api.uptodata.io/v1',
+    },
+  },
 ]
 
 export const loadKeys = () => json('/keys').then((d) => d.keys)

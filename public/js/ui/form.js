@@ -269,6 +269,19 @@ export function renderFields(container, fields, state, onChange) {
       box.checked = Boolean(entry.enabled)
       box.addEventListener('change', () => {
         entry.enabled = box.checked
+        // Some fields are alternative ways of naming the same subject — a post
+        // URL or its urn. Sending two is an error, so choosing one puts the
+        // others back, and the form shows which one will actually go.
+        if (box.checked && field.exclusiveGroup) {
+          for (const other of fields) {
+            if (other.name === field.name) continue
+            if (other.exclusiveGroup !== field.exclusiveGroup) continue
+            if (state[other.name]) state[other.name].enabled = false
+          }
+          redraw()
+          onChange()
+          return
+        }
         row.classList.toggle('off', !box.checked)
         onChange()
       })

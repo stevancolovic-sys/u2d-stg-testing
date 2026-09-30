@@ -75,6 +75,55 @@
   </section>
 </main>
 
+<script>
+// A module that fails to load or throws on the way up leaves the page looking
+// merely empty, which is indistinguishable from "the tool is broken" and says
+// nothing about why. Capture the failure and put it on screen instead.
+(function () {
+  var failures = []
+  var shown = false
+
+  function show(reason) {
+    if (shown) return
+    shown = true
+    var bar = document.createElement('div')
+    bar.setAttribute('role', 'alert')
+    bar.style.cssText =
+      'position:fixed;inset:0 0 auto 0;z-index:9999;padding:14px 18px;' +
+      'background:#3a1d22;color:#f2d4d8;border-bottom:1px solid #6b2f38;' +
+      "font:400 13.5px/1.55 'IBM Plex Sans',system-ui,sans-serif"
+    var head = document.createElement('strong')
+    head.textContent = 'The console did not finish loading.'
+    head.style.cssText = 'display:block;margin-bottom:4px;font-weight:600'
+    var body = document.createElement('div')
+    body.textContent = reason
+    body.style.cssText =
+      "font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap"
+    var hint = document.createElement('div')
+    hint.textContent = 'A hard refresh (Cmd-Shift-R) is worth trying first.'
+    hint.style.cssText = 'margin-top:6px;color:#c39aa1'
+    bar.appendChild(head)
+    bar.appendChild(body)
+    bar.appendChild(hint)
+    document.body.appendChild(bar)
+  }
+
+  window.addEventListener('error', function (e) {
+    failures.push(e.message + (e.filename ? '  (' + e.filename + ':' + e.lineno + ')' : ''))
+  })
+  window.addEventListener('unhandledrejection', function (e) {
+    failures.push('Unhandled rejection: ' + ((e.reason && e.reason.message) || e.reason))
+  })
+
+  // The app sets this once it has mounted. Still unset means it never got there.
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (window.__u2dReady) return
+      show(failures.length ? failures.join('\n') : 'No error was reported — the scripts may not have been served.')
+    }, 4000)
+  })
+})()
+</script>
 <script type="module" src="/js/app.js"></script>
 </body>
 </html>
