@@ -546,6 +546,26 @@ export class KeyStore {
 
 export default {
   async fetch(request, env) {
+    try {
+      return await handle(request, env)
+    } catch (err) {
+      // Without this the platform answers with its own "Worker threw
+      // exception" page, which is HTML, carries no CORS headers and names
+      // nothing — the tool then shows an empty panel and no reason for it.
+      return json(
+        {
+          error: 'The console hit an internal error.',
+          detail: String((err && err.message) || err),
+          where: new URL(request.url).pathname,
+        },
+        500
+      )
+    }
+  },
+}
+
+async function handle(request, env) {
+  {
     const url = new URL(request.url)
     const parts = url.pathname.split('/').filter(Boolean)
 
@@ -682,5 +702,5 @@ export default {
 
     if (env.ASSETS) return env.ASSETS.fetch(request)
     return json({ error: 'Not found' }, 404)
-  },
+  }
 }
