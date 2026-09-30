@@ -388,8 +388,21 @@ async function handleAuth(request, env, url, parts) {
     const claims = decodeIdToken(payload && payload.id_token)
 
     if (!claims) {
-      return page('Sign-in failed', `<h1>Google did not return an identity</h1>
-        <p><a class="btn" href="/auth/login">Try again</a></p>`, 502)
+      // Google says exactly what it refused and why — invalid_client for a
+      // wrong secret, redirect_uri_mismatch for an address the OAuth client
+      // does not list. Swallowing that left "sign-in does not work" with
+      // nothing to act on.
+      const reason = payload && (payload.error_description || payload.error)
+      const detail = reason
+        ? `<p>Google said: <code>${String(reason).replace(/[<>&]/g, '')}</code></p>`
+        : `<p>Google returned <code>${token.status}</code> with no identity and no reason.</p>`
+      return page(
+        'Sign-in failed',
+        `<h1>Google did not return an identity</h1>
+        ${detail}
+        <p><a class="btn" href="/auth/login">Try again</a></p>`,
+        502
+      )
     }
 
     if (!isAllowed(claims, config.domain)) {
