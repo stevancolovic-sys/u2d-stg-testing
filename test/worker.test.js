@@ -166,6 +166,15 @@ describe('API keys', () => {
     expect((await res.json()).error).toBe('no_key')
   })
 
+  // The Worker caches a key briefly so a load test does not spend the Durable
+  // Objects allowance re-reading it. Removing the key has to win immediately.
+  it('stops proxying as soon as the key is removed, cache or no cache', async () => {
+    await call('PUT', '/keys', JSON.stringify({ api: 'v1', environment: 'staging', apiKey: 'k-to-remove' }))
+    await call('DELETE', '/keys?api=v1&environment=staging')
+    const res = await call('POST', '/keys/proxy', JSON.stringify({ environment: 'staging', path: '/account', method: 'GET' }))
+    expect((await res.json()).error).toBe('no_key')
+  })
+
   it('refuses a proxy path that does not start with a slash', async () => {
     const res = await call('POST', '/keys/proxy', JSON.stringify({ environment: 'staging', path: 'account', method: 'GET' }))
     expect(res.status).toBe(400)

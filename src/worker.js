@@ -198,6 +198,42 @@ const API_BASES = {
   },
 }
 
+// Reading the key out of the store on every proxied call turned one API
+// request into two, and a sustained load test then spent the Durable Objects
+// free-tier allowance on key lookups rather than on the API under test. A key
+// changes rarely, so an isolate may hold one briefly. The window is short and
+// a save or removal clears it, so a replaced key cannot go on being used.
+const KEY_CACHE = new Map()
+const KEY_CACHE_MS = 60_000
+
+const cacheSlot = (email, api, environment) => `${email}\u0000${api}\u0000${environment}`
+
+function forgetCachedKeys(email) {
+  for (const slot of KEY_CACHE.keys()) {
+    if (slot.startsWith(`${email}\u0000`)) KEY_CACHE.delete(slot)
+  }
+}
+
+async function apiKeyFor(env, email, api, environment) {
+  const slot = cacheSlot(email, api, environment)
+  const hit = KEY_CACHE.get(slot)
+  if (hit && hit.until > Date.now()) return { apiKey: hit.apiKey, status: 200 }
+
+  const stub = env.KEYS.get(env.KEYS.idFromName(email))
+  const reply = await stub.fetch(
+    new Request('https://do/key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api, environment }),
+    })
+  )
+  const body = await reply.json().catch(() => null)
+  const apiKey = body && body.apiKey
+  // Only a hit is worth keeping: caching "no key" would outlast the save.
+  if (reply.ok && apiKey) KEY_CACHE.set(slot, { apiKey, until: Date.now() + KEY_CACHE_MS })
+  return { apiKey, status: reply.status, error: body && body.error }
+}
+
 const APIS = Object.keys(API_BASES)
 const ENVIRONMENTS = Object.keys(API_BASES.legacy)
 const slotOf = (api, environment) => `${api}:${environment}`
@@ -625,18 +661,11 @@ async function handle(request, env) {
         return json({ error: 'Unknown environment or path' }, 400)
       }
 
-      const stub = env.KEYS.get(env.KEYS.idFromName(session.email))
-      const keyReply = await stub.fetch(
-        new Request('https://do/key', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ api: 'v1', environment }),
-        })
-      )
-      const keyBody = await keyReply.json().catch(() => null)
-      if (!keyReply.ok || !keyBody || !keyBody.apiKey) {
-        return json({ error: (keyBody && keyBody.error) || 'no_key', api: 'v1', environment }, keyReply.status)
+      const found = await apiKeyFor(env, session.email, 'v1', environment)
+      if (!found.apiKey) {
+        return json({ error: found.error || 'no_key', api: 'v1', environment }, found.status || 500)
       }
+      const keyBody = { apiKey: found.apiKey }
 
       const method = (payload.method || 'POST').toUpperCase()
       const started = Date.now()
@@ -667,6 +696,10 @@ async function handle(request, env) {
         authConfig(env).secret
       )
       // The gate above already refused anyone without a session.
+      // A save or a removal must not leave a stale key in the cache.
+      if (request.method === 'PUT' || request.method === 'DELETE') {
+        forgetCachedKeys(session.email)
+      }
       const stub = env.KEYS.get(env.KEYS.idFromName(session.email))
       const inner = parts[1] ? `https://do/${parts[1]}` : `https://do/${url.search}`
       const method = parts[1] ? 'POST' : request.method

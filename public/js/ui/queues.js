@@ -145,7 +145,13 @@ function watchUnfinished() {
 export function startPolling(id) {
   const queue = queues.find((q) => q.id === id)
   if (!queue || timers.has(id)) return
-  timers.set(id, setInterval(() => tick(queue), 5000))
+  timers.set(
+    id,
+    setInterval(() => {
+      if (document.hidden) return
+      tick(queue)
+    }, 5000)
+  )
   tick(queue)
 }
 

@@ -173,5 +173,13 @@ export function mountWebhooks(node) {
 
   if (timer) clearInterval(timer)
   poll(list, counter)
-  timer = setInterval(() => poll(list, counter), 4000)
+  // A background tab polling every four seconds spends the Durable Objects
+  // allowance on a panel nobody is looking at. Catch up when it comes back.
+  timer = setInterval(() => {
+    if (document.hidden) return
+    poll(list, counter)
+  }, 4000)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll(list, counter)
+  })
 }
