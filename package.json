@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:server",
     "docs": "node scripts/build-docs.mjs",
     "build:v1": "node scripts/build-v1.mjs",
     "start": "node server/index.js",
-    "serve": "node server/index.js"
+    "serve": "node server/index.js",
+    "test:server": "node --test server/*.test.js"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.0",

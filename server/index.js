@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import worker, { HookStore, LinkStore, KeyStore } from '../src/worker.js'
 import { namespace } from './storage.js'
 import { assets } from './assets.js'
+import { send } from './respond.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = process.env.DATA_DIR || path.join(here, '..', '.data')
@@ -54,14 +55,6 @@ async function toRequest(req) {
   }
 
   return new Request(url, { method: req.method, headers, body })
-}
-
-async function send(res, reply) {
-  res.statusCode = reply.status
-  for (const [name, value] of reply.headers) res.setHeader(name, value)
-  if (!reply.body) return res.end()
-  const buffer = Buffer.from(await reply.arrayBuffer())
-  res.end(buffer)
 }
 
 const server = http.createServer(async (req, res) => {
