@@ -20,7 +20,11 @@ async function json(path, options) {
   const res = await fetch(path, options)
   const body = await res.json().catch(() => null)
   if (!res.ok) {
-    const err = new Error((body && (body.error || body.message)) || `${path} returned ${res.status}`)
+    // The Worker sends "error" for the headline and "detail" for what
+    // actually went wrong. Dropping the detail left the panel saying only
+    // that something failed, which is the part nobody needed telling.
+    const headline = (body && (body.error || body.message)) || `${path} returned ${res.status}`
+    const err = new Error(body && body.detail ? `${headline} ${body.detail}` : headline)
     err.status = res.status
     err.code = body && body.error
     throw err
