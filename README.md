@@ -207,6 +207,28 @@ The store is shared and unauthenticated, like the callback sink: anyone with
 the Worker URL can read and change it. Fine for LinkedIn URLs; do not keep
 anything else there.
 
+## Volume testing v1
+
+With v1 selected, **Load test** changes to match it. Tick as many of the 24
+billable operations as you like, say how many calls each should get, and set a
+**credit budget**.
+
+Nothing here estimates. Every v1 reply reports `meta.creditsUsed`,
+`creditsRemaining`, `billed` and `reason`, so the run sums what was actually
+charged and **stops before the call that would cross the budget**, not after
+it. Each operation uses the inputs saved in its own form, which start as the
+spec's example and are therefore valid.
+
+Before it starts, the panel reads `GET /account` — free — for the balance and
+the rate limits, and says how many searches are left this hour. Search is
+limited by the hour rather than the minute, so ticking the eight search
+operations at volume will exhaust it and the rest come back 429, which costs
+nothing and is itself worth seeing.
+
+Results break down by operation: how many succeeded, what was spent, average
+and p95, and the API's own reasons — `success`, `unprocessable_target`,
+`rate_limited`. The whole run downloads as JSON.
+
 ## Burst
 
 The two live endpoints get a **Burst** tab: paste a few targets, say how many

@@ -14,6 +14,7 @@ import { mountWebhooks } from './ui/webhooks.js'
 import { mountLinks } from './ui/links.js'
 import { mountKeys, onKeysChanged, knownKeys } from './ui/keys.js'
 import { mountV1, selectV1, currentV1, v1Groups } from './ui/v1.js'
+import { mountV1Load } from './ui/v1-load.js'
 import { tokenFor, freshToken, clearToken, currentEnvironment, environmentLabel } from './keys.js'
 
 const WHERE_KEY = 'up2data.where'
@@ -173,6 +174,13 @@ function go(next) {
   // Jobs update themselves while you are looking at them, and stop when you
   // are not — an open tab should not poll forever.
   setJobsVisible(where.kind === 'panel' && where.id === 'jobs')
+
+  // The load test follows whichever API is selected.
+  if (where.kind === 'panel' && where.id === 'burst') {
+    $('#burst-legacy').hidden = api === 'v1'
+    $('#burst-v1').hidden = api !== 'v1'
+    if (api === 'v1') mountV1Load($('#burst-v1'), { getEnvironment: () => currentEnvironment() || 'staging' })
+  }
 
   if (where.kind === 'job') selectJob(where.id)
   if (where.kind === 'v1') selectV1(where.id)

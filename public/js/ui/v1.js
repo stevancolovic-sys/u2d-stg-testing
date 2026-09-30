@@ -22,6 +22,10 @@ let state = {}
 let root = null
 let getEnvironment = () => 'staging'
 
+export function stateFor(endpoint) {
+  return loadState(endpoint)
+}
+
 function loadState(endpoint) {
   // Every field's starting value is the example's own, set by the generator.
   const base = initialState(endpoint)

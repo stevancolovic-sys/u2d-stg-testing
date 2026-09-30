@@ -859,3 +859,54 @@ table.results tr:hover td { background: var(--panel); }
   color: #fff;
 }
 .key-api:first-child { margin-top: 0; }
+
+/* ---- v1 load test ---- */
+
+.v1-standing:not(:empty) {
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.op-picker {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 4px 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.op-group {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.op-group:first-child { margin-top: 8px; }
+
+.op-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.op-row:hover { color: #fff; }
+.op-row .mono { flex: 1 1 220px; font-size: 11.5px; }
+
+.v1-op-results:not(:empty) { margin-top: 22px; }
+.v1-op-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.v1-op-row .mono:first-child { flex: 0 0 200px; color: #fff; }

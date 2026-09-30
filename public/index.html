@@ -63,11 +63,14 @@
     <div id="panel-burst" class="panel" hidden>
       <h1>Load test</h1>
       <p class="lede">Send many at once and see how much arrives in time.</p>
-      <div class="burst-target-pick">
-        <span class="muted">Test against</span>
-        <div id="burst-kind" class="presets"></div>
+      <div id="burst-legacy">
+        <div class="burst-target-pick">
+          <span class="muted">Test against</span>
+          <div id="burst-kind" class="presets"></div>
+        </div>
+        <div id="burst"></div>
       </div>
-      <div id="burst"></div>
+      <div id="burst-v1" hidden></div>
     </div>
   </section>
 </main>

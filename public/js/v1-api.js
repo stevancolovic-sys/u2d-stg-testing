@@ -29,10 +29,14 @@ export function v1Curl(endpoint, state, environment) {
   return lines.join(' \\\n')
 }
 
-export async function callV1({ endpoint, state, environment = 'staging' }) {
+export async function callV1({ endpoint, state, environment = 'staging', timeoutMs = 0 }) {
   const path = buildV1Url('', endpoint, state)
   const body = buildV1Body(endpoint, state)
   const started = performance.now()
+
+  // Giving up stops us listening; the API carries on and still bills.
+  const controller = timeoutMs > 0 ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
 
   let res
   try {
@@ -40,9 +44,15 @@ export async function callV1({ endpoint, state, environment = 'staging' }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ environment, path, method: endpoint.method, body }),
+      signal: controller ? controller.signal : undefined,
     })
   } catch (err) {
+    if (controller && controller.signal.aborted) {
+      return { timedOut: true, timeoutMs, elapsedMs: Math.round(performance.now() - started) }
+    }
     return { transportError: String(err.message || err), elapsedMs: Math.round(performance.now() - started) }
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 
   const relayed = await res.json().catch(() => null)
