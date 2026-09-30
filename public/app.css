@@ -913,3 +913,71 @@ table.results tr:hover td { background: var(--panel); }
 
 .plan-blocked { color: var(--alarm); }
 .burst-field.wide .textarea { width: 100%; }
+
+/* ---- response body as a foldable tree ---- */
+
+.json-tools {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.jv {
+  margin: 8px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text);
+  font: 400 12px/1.7 var(--mono);
+  max-height: 520px;
+  overflow: auto;
+}
+
+/* Each level steps in by one toggle's width, so keys line up under their parent. */
+.jv-children { padding-left: 17px; }
+
+.jv-line,
+.jv-closing {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jv-line:hover { background: #ffffff08; }
+
+.jv-toggle {
+  flex: none;
+  width: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  line-height: 1.7;
+  text-align: left;
+  cursor: pointer;
+}
+.jv-toggle:hover:not(:disabled) { color: var(--brass); }
+.jv-toggle:disabled { cursor: default; opacity: 0.35; }
+
+/* Leaves have no toggle, so they borrow its width to stay in line. */
+.jv-spacer { flex: none; width: 14px; }
+
+.jv-key { color: var(--brass); }
+.jv-punc { color: var(--muted); }
+.jv-summary { color: var(--muted); font-style: italic; }
+.jv-str { color: var(--text); }
+.jv-num { color: var(--teal); }
+.jv-bool { color: var(--teal); }
+.jv-null { color: var(--muted); }
+
+/* A closed branch prints its bracket inline; an open one prints it underneath. */
+.jv-node > .jv-children,
+.jv-node > .jv-closing { display: none; }
+.jv-node.open > .jv-children,
+.jv-node.open > .jv-closing { display: block; }
+.jv-node.open > .jv-closing { display: flex; }

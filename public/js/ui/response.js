@@ -2,6 +2,7 @@
 // Every value arrives from the network, so it goes in via textContent.
 
 import { downloadJson, copyJson } from '../download.js'
+import { renderJsonTree } from './json-view.js'
 import { classifyTransportFailure } from '../diagnose.js'
 
 const el = (tag, className, text) => {
@@ -48,6 +49,45 @@ function saveRow(payload, name) {
   return row
 }
 
+// A response body, as a tree you can fold away. The raw text stays one click
+// behind it: a browser's own find only searches what is on the page, and a
+// folded node is not, so anyone hunting for a value needs the flat view too.
+function renderBody(result) {
+  const wrap = el('div', 'json-body')
+
+  if (result.body === null || result.body === undefined) {
+    const pre = el('pre', 'json')
+    pre.textContent = result.raw || '(empty body)'
+    wrap.append(pre)
+    return wrap
+  }
+
+  const tree = renderJsonTree(result.body)
+  const pre = el('pre', 'json')
+  pre.textContent = JSON.stringify(result.body, null, 2)
+  pre.hidden = true
+
+  const tools = el('div', 'json-tools')
+  const expand = el('button', 'btn-ghost', 'Expand all')
+  const collapse = el('button', 'btn-ghost', 'Collapse all')
+  const raw = el('button', 'btn-ghost', 'Raw')
+
+  expand.addEventListener('click', () => tree.openAll())
+  collapse.addEventListener('click', () => tree.closeAll())
+  raw.addEventListener('click', () => {
+    const showingRaw = !pre.hidden
+    pre.hidden = showingRaw
+    tree.hidden = !showingRaw
+    raw.textContent = showingRaw ? 'Raw' : 'Tree'
+    expand.disabled = !showingRaw
+    collapse.disabled = !showingRaw
+  })
+
+  tools.append(expand, collapse, raw)
+  wrap.append(tools, tree, pre)
+  return wrap
+}
+
 export function renderResponse(container, result, name) {
   container.textContent = ''
 
@@ -90,9 +130,7 @@ export function renderResponse(container, result, name) {
     box.append(list)
   }
 
-  const pre = el('pre', 'json')
-  pre.textContent = result.body ? JSON.stringify(result.body, null, 2) : result.raw || '(empty body)'
-  box.append(pre)
+  box.append(renderBody(result))
 
   // A failed response is worth saving too — that is usually the one you want
   // to hand to someone.
