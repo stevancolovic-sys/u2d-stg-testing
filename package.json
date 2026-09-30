@@ -7,7 +7,9 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "docs": "node scripts/build-docs.mjs",
-    "build:v1": "node scripts/build-v1.mjs"
+    "build:v1": "node scripts/build-v1.mjs",
+    "start": "node server/index.js",
+    "serve": "node server/index.js"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.0",

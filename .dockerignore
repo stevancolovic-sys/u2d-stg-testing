@@ -1,0 +1,10 @@
+.git
+.data
+node_modules
+test
+scripts
+spec
+docs
+.wrangler
+.dev.vars
+*.log

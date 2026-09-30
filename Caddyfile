@@ -1,0 +1,4 @@
+u2d-internaltool.coki.online {
+	encode gzip
+	reverse_proxy u2d-internaltool:3000
+}
